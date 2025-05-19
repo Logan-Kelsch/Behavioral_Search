@@ -1,0 +1,25 @@
+### General order of development for this research
+
+- 1 collect data, multiple indices and time frames
+- 2 create initial set of features
+- 3 create distribution detection and association functionality
+- 4 create utility functionality for referencing feats (prior ex: fss)
+- 5 create state generation algorithm from any feature set by considering distributions
+- 6 create proof of concept for NN with initializable variables for random generation
+- 7 create proof of concept for MDP with initializable variables for random generation
+- 8 create proof of concept for HMM with initializable variables for random generation
+- 9 Implement variable-node structure for pattern based gene (node)
+- 10 Implement variable-node structure for NN/HMM/MDP full implementation for random generation
+- 11 Implement capacity for node ('gene') to translate between node-type ('genome'),
+  - 11.1 AKA. ensure universal congruency between random parameterization and feature perception, where unique node-based analytical approach is on the top of procedural stack.
+- 12 implement gene + population serialization/deserialization
+- 13 create custom population generation functions
+- 14 explore segment entry exit theory
+- 15 create differentiation in segment entry and exit
+- 16 potentially explore segment optimization or solution space exploring
+- 17 consider forbidden areas of solution space to be directly associated with exit conditioning
+- 18 optimize all functionality
+- 19 implement monte carlo and walk forward evaluation
+- 20 create one click functions for visualization of results or dynamics of search
+- 21 create results compilation functionality for easy visualization
+- 22 execute large scale searches and compile findings
