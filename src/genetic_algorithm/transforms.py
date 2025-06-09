@@ -13,7 +13,7 @@ The four TYPES of transformations (Phi):
 All transformations (as of 6/8/2025, day theorized):
 - Difference	(Subtraction)	{Phi-O1}
 - Scale			(Division)		{Phi-O2}
-- Normalized Ranging			{Phi-O3} -- Need to further break this down to a specific science
+- Normalized Ranging			{Phi-O3}
 - MinMax Norm	(Ranging)		{Phi-R}
 - Minimum, Maximum				{Phi-F1,F2}
 - Average, Absolute				{Phi-F3,F4}
@@ -29,5 +29,7 @@ Therefore, I have defined a state based system, on what can stack on what, and w
     <<D>>	->	{ <<D>>	, <<R>> }
     <<R>>	->	{ <<R>> }
     
-    etc etc etc
+Variables Derived from each Transforming function:
+
+This is being initially described in the Research Extentions latex file
 '''
