@@ -32,12 +32,15 @@ for both visual interpretation and algorithmic data transforming.
 import numpy as np
 import bottleneck as bn
 
+
 ## NOTE BEGIN TRANSFORMATION FUNCTIONS NOTE ##
+
 
 def t_MAX(
 	X:np.ndarray,
 	Delta:int   =   -1
 ) -> np.ndarray:
+	
 	'''
 	### info
 	Takes highest value of x over past time window delta. <br>
@@ -54,6 +57,7 @@ def t_MIN(
 	X:np.ndarray,
 	Delta:int   =   -1
 ) -> np.ndarray:
+	
 	'''
 	### info
 	Takes lowest value of x over past time window delta <br>
@@ -70,6 +74,7 @@ def t_AVG(
 	X:np.ndarray,
 	Delta:int   =   -1
 ) -> np.ndarray:
+	
 	'''
 	### info 
 	takes average value of x over past time window Delta<br>
@@ -85,6 +90,7 @@ def t_AVG(
 def t_NEG(
 	X:np.ndarray
 ) -> np.ndarray:
+	
 	'''
 	### info 
 	swapps the sign of all values in x
@@ -101,6 +107,7 @@ def t_DIF(
 	in_place:bool			=	False,
 	out_arr:np.ndarray|None	=	None
 ) -> np.ndarray:
+	
 	'''
 	### info
 	Subtracting x from variable alpha<br>
@@ -140,6 +147,7 @@ def t_VAR(
 	out_arr:np.ndarray|None	=	None,
 	in_place:bool			=	False
 ) -> np.ndarray:
+	
 	'''
 	### info
 	computing the squared difference (x - a)**2 from x to variable alpha<br>
@@ -177,11 +185,14 @@ def t_VAR(
 
 	return out_arr
 
+
+
 def t_RNG(
 	X:np.ndarray,
 	Delta_xmin:int	=	-1,
 	Delta_xmax:int	=	-1
 ) -> np.ndarray:
+	
 	'''
 	### info 
 	this function scores x within the min and max values of x within Delta xmin and xmax respective time windows<br>
@@ -189,17 +200,60 @@ def t_RNG(
 	'''
 	#a universal general maximum to data development size
 	assert (Delta_xmin < 240 & Delta_xmax < 240), "t_RNG: Deltas must be below 240."
-	return
+
+	#prepare output buffer of nans
+	out = np.full((X.shape[0], X.shape[1]), np.nan, dtype=np.float32)
+
+	#num rows we can compute
+	m = X.shape[0] - max(Delta_xmax, Delta_xmin)
+
+	#slices for vectorized diff
+	current = X[Delta_xmax:]
+	vec1 = X[Delta_xmax - Delta_xmin : (Delta_xmax - Delta_xmin) + m]
+	vec2 = X[:m]
+
+	#complete vectorized subtraction 
+	numer = current - vec1
+	denom = vec2	- vec1
+
+	#suppress div warning if den==0
+	#complete division
+	with np.errstate(divide='ignore', invalid='ignore'):
+		out[Delta_xmax:] = numer / denom - 0.5
+
+	return out
+
+
 
 def t_HKP(
 	X:np.ndarray,
+	out_arr:np.ndarray|None	=	None,
 	kappa:int   =   -1
 ) -> np.ndarray:
+	
 	'''
 	
 	'''
+
 	#sanity check on decay value since decay coefficient is e^-kappa
 	assert kappa > 0, "t_HKP: kappa must be over 0 to avoid inverse decay."
-	return
+
+	k = np.exp(-kappa)
+
+	if(out_arr is None):
+		out_arr = np.empty_like(X)
+
+	#init first time step
+	out_arr[0] = X[0]
+
+	#iterate through featureset
+	for t in range(1, X.shape[0]):
+
+		#vectorize across features
+		out_arr[t] = k*out_arr[t-1] + X[t]
+
+	return out_arr
+
 
 ## NOTE END TRANSFORMATION FUNCTIONS NOTE ##
+
