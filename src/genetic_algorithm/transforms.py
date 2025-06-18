@@ -33,6 +33,7 @@ import numpy as np
 import bottleneck as bn
 from typing import Optional, Union
 import random
+from collections import deque
 from dataclasses import dataclass, field
 
 
@@ -365,12 +366,12 @@ class T_node():
 
 	def __init__(
 		self,
-		type	:	int					=	0,
-		x		:	int|"T_node"		=	0,
-		kappa	:	float				=	0,
-		alpha	:	float|int|"T_node"	=	0,
-		delta	:	int					=	0,
-		delta2	:	int					=	0,
+		type	:	int				=	0,
+		x		:	int|"T_node"	=	0,
+		kappa	:	float			=	None,
+		alpha	:	float|"T_node"	=	None,
+		delta	:	int				=	None,
+		delta2	:	int				=	None,
 		random	:	bool	=	False
 	) -> None:
 		
@@ -491,8 +492,9 @@ class T_node():
 
 				case 5|6:
 
-					#until I come up with some better way to go again and formulate this, it must remain zero
-					self._alpha = 0
+					#until I come up with some better way to go again and formulate this, 
+					#it must remain zero
+					self._alpha = int(0)
 
 				case 8:
 
@@ -503,7 +505,116 @@ class T_node():
 		if(child_mutation):
 			self._x.mutate_tree()
 
+	def get_tlist(
+		self,
+		tlist	:	list
+	):
+		'''
+		### info
+		This function is recursive and is called at each node for external function get_oplist()
+		### format
+		Each item in the oplist will be a list of 3 items, each item depicting:
+		- transformation type (sign represents inversion of sources)
+		- flags, used for pushing or popping of xptr in/out of vstk
+		- variables needed in the operation (ex: delta, delta2, kappa)
+		'''
 
+		#this function was originally crafted during my table server shift on 6/16/2025
+
+		#x is tnode? (meaning node._type is nonzero)
+		if(isinstance(self._x, T_node)):
+
+			#go to x child node
+			tlist = self._x.get_tlist(tlist=tlist)
+
+		#x is index (of some raw feature)? (meaning node._type is zero)
+		if(isinstance(self._x, int)):
+
+			#push new item into the tlist (type, index, params(none needed))
+			#this action (0) represents: go and put raw feature of index ._x into an ndarray
+			# action zero can also represent utility functionality (vstk pop/push) per flags
+			tlist.append([0, self._x, ()])
+			return tlist
+		
+		#NOTE to reach this point in recursion, x branch bias has been fully explored NOTE#
+
+		#does this node possibly have two children (alpha)?
+		#I am using 'is not' syntax out of fear over auto-overwridden __eq__
+		if(self._alpha is not None):
+
+			#if this exists, that means we need to utilze a variable stack (vstk) to hold
+			#the value/array (xptr) waiting for operation
+
+			#dev note: the pop and push is essential. this is a byproduct of trying to 
+			#	flatten a tree into operations and is simplest as far as my brainstorming is concerned.
+
+			#This flag (-1) represents: take the variable in xptr and push onto vstk!
+			#there is no directed needing for operation (None) and no variables either ()
+			tlist.append([0, -1, ()])
+
+			#under all cases, we need to operate ._x as from top of vstk
+			#this will be denoted as a negative transformation variable indicating flipped var sources
+			#we will split the operation into whether or not alpha is a float or array(node)
+
+			#alpha is tnode?
+			if(isinstance(self._alpha, T_node)):
+
+				#go to alpha child node
+				tlist = self._alpha.get_tlist(tlist=tlist)
+
+				#negative type suggests x is from top of vstk
+				#zero flag value suggests alpha is from xptr
+				tlist.append([-1*self._type, 0, ()])
+
+			else:
+
+				#in this case we will be operating on alpha as a float value
+
+				#negative type suggests x is from top of vstk
+				#(1) flag value suggests alpha never made it to xptr and is passed in
+				tlist.append([-1*self._type, 1, (self._alpha)])
+
+			#now we also need to pop the used variable from vstk
+			#we will represent this with a flag of (-2)
+			tlist.append([0, -2, ()])
+
+			#by here we have completed all actions for any path with alpha
+			return tlist
+
+		#NOTE to reach this point in recursion, we have a prepared x, as well as no alpha var NOTE#
+				
+		#we can operate with prepared variables!
+		#we will throw the variables into the third list param according to protocol
+		match(self._type):
+
+			#our unseen transformations so far are 1, 2, 3, 4, 7, 8
+
+			case 1|2|3:
+
+				#this case consists of the use of delta
+				tlist.append([self._type, 0, (self._delta)])
+
+			case 4:
+
+				#this case consists of no variable use
+				tlist.append([self._type, 0, ()])
+
+			case 7:
+
+				#this case consists of the use of delta1,2
+				tlist.append([self._type, 0, (self._delta, self._delta2)])
+			
+			case 8:
+
+				#this case consists of the use of kappa
+				tlist.append([self._type, 0, (self._kappa)])
+
+			case _:
+				raise ValueError(f"FATAL: match-case failed checking T_node trans_type, got {self._type}")
+			
+		#all possible operations have been added to tlist
+		return tlist
+				
 	
 	def random(
 		self,
@@ -533,3 +644,58 @@ class T_node():
 			return self._x.get_rrf()
 		else:
 			return self._x
+		
+def get_oplist(
+	root	:	T_node
+):
+	'''
+	This function is the recursive intiator for a transformation tree to flatten into an operational list.<br>
+	### format
+		Each item in the oplist will be a list of 3 items, each item depicting:
+		- transformation type (sign represents inversion of sources)
+		- flags, used for pushing or popping of xptr in/out of vstk
+		- variables needed in the operation (ex: delta, delta2, kappa)
+	'''
+
+	#initiate the operation list
+	tlist = []
+
+	#return the results from the root node
+	return root.get_tlist(tlist=tlist)
+
+def pop2feat(
+	population	:	list,
+	x_raw		:	np.ndarray
+)	-> np.ndarray:
+	
+	'''
+	### info:
+	This function will take an original set of transformation trees<br>
+	and use them to generate a corresponding parallel featureset
+	### possible oplist values:
+	- o[0, >=0, ()] - get feature o[1] from x -> xptr
+	- o[0, -1, ()] - push xptr -> vstk[-0]
+	- o[0, -2, ()] - pop top of vstk -> [delete it]
+	- o[n<0, 0, ()] - operate t[-o[n]] with x from vstk[-1] and alpha in xptr -> xptr
+	- o[n<0, 1, (1 item)] - operate t[-o[n]] with x from vstk[-1] and alpha from o[2] -> xptr
+	- 0[n>0, 0, (1-2 items)] - operate t[o[n]] on xptr using corresponding o[2] parameters
+	'''
+
+	#initiate xptr holding dynamic data parallel with population
+	xptr = np.empty(len(population), dtype=object)
+
+	#initiate list of oplists parallel with population
+	oplists = np.empty(len(population), dtype=list)
+
+	#initiate list of variable stacks parallel with population
+	vstk = np.empty(len(population), dtype=list)
+
+	#collect oplists for each member of population
+	for i, this_tree in population:
+		oplists[i] = get_oplist(root=this_tree)
+
+	#collect transformation stacks
+	#collect the shortest common subsequence
+	#create hotloop for operating patterns
+	#consider also popping items of oplists
+	
