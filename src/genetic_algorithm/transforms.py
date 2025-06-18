@@ -663,6 +663,47 @@ def get_oplist(
 	#return the results from the root node
 	return root.get_tlist(tlist=tlist)
 
+def oplist2tstack(
+	oplist	:	list
+)	->	list:
+	
+	'''
+	This function takes some given oplist and 
+	creates more legible single int list for shortest common supersequence.
+	'''
+
+	#initialize transformation stack
+	tstack = []
+
+	#go through each operation in the stack
+	for op in oplist:
+
+		#if this is true, this means that 
+		#a regular operation is being completed, sign can be neglected.
+		if(op[0]!=0):
+
+			#put the transformation integer in the tstack
+			tstack.append(abs(op[0]))
+
+		#for 0 operations, can only parallelize true identity transformation
+		#identity transformation is used for turning feature index into ndarray.
+		#break up 0 type into flags
+		else:
+
+			#if the flag is negative, can neglect!
+			#those operations cannot be parallel,
+			#and are not considered in the scs search
+			if(op[1]>=0):
+
+				#the only case that is added here is identity (feature grabbing)
+				tstack.append(0)
+	
+	return tstack
+
+		
+			
+
+
 def pop2feat(
 	population	:	list,
 	x_raw		:	np.ndarray
@@ -687,15 +728,26 @@ def pop2feat(
 	#initiate list of oplists parallel with population
 	oplists = np.empty(len(population), dtype=list)
 
+	#initiate list of tstack, parallel with population
+	tstacks = np.empty(len(population), dtype=list)
+
 	#initiate list of variable stacks parallel with population
 	vstk = np.empty(len(population), dtype=list)
 
 	#collect oplists for each member of population
 	for i, this_tree in population:
+
+		#for each tree, get the op list
 		oplists[i] = get_oplist(root=this_tree)
 
-	#collect transformation stacks
-	#collect the shortest common subsequence
+		#collect transformation stacks, for legibility within
+		#the shortest common supersequence algorithm
+		tstacks[i] = oplist2tstack(oplists[i])
+
+	#get the shortest common supersequence from all tstacks in one go
+	#NOTE this function will result in a final string of operations for full transforming NOTE#
+	
+
 	#create hotloop for operating patterns
 	#consider also popping items of oplists
 	
