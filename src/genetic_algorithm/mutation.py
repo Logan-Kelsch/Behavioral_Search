@@ -1,18 +1,5 @@
 '''
-Current transforming function list:
-- No transformation				(Identity,		ID, 0)
-- Displacement from mean 		(demeaned, 		DM, 1)
-- Standard deviation from mean 	(Volatility,	VL, 2)
-- Min-Max Range Normalization 	(Stoch, 		MM, 4)
-- Hawkes Self-Exciting Process 	(Hawkes,		HP, 3)
 
-A direction graph for how these transformations can be applied on each other:
-
-	_________>	DM ______\
-   /			\/	     \/
-ID __________>	MM	<____HP
-   \			/\		 /\
-	_________>	VL ______/
 '''
 
 import random

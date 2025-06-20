@@ -705,7 +705,7 @@ def oplist2tstack(
 			
 
 
-def pop2feat(
+def forest2features(
 	population	:	list,
 	x_raw		:	np.ndarray
 )	-> np.ndarray:
@@ -792,8 +792,48 @@ def pop2feat(
 		# as in using the where= parameter in the actual transformation functions and use out= too!
 		#call the transformation function using match case and t_ss as id
 		#then pop all items with i_ss from oplist
+		match(t_ss):
+
+			case 0:
+				# make sure they’re integer arrays
+				idx_arr  = np.asarray(idx,  dtype=np.intp)   # destination columns in xptr
+				flag_arr = np.asarray(flag, dtype=np.intp)   # source columns in raw_features
+
+				# this does, for each k:
+				#    xptr[:, idx_arr[k]] = raw_features[:, flag_arr[k]]
+				xptr[:, idx_arr] = raw_features[:, flag_arr]
+
+			case 1:
+				pass
+
+			case 2:
+				pass
+
+			case 3:
+				pass
+
+			case 4:
+				pass
+
+			case 5:
+				pass
+
+			case 6:
+				pass
+
+			case 7:
+				pass
+
+			case 8:
+				pass
+
+			case _:
+				raise ValueError(f"t_ss value is not valid in forest2feature. ({t_ss})")
+			
+		#pop all completed operations in used oplists 
+		for i in i_ss:
+			oplists[i].pop(0)
 
 		pass
 
-	#consider also popping items off oplists
 	
