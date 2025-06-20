@@ -35,6 +35,7 @@ from typing import Optional, Union
 import random
 from collections import deque
 from dataclasses import dataclass, field
+import utility
 
 
 ## NOTE BEGIN TRANSFORMATION FUNCTIONS NOTE ##
@@ -647,7 +648,7 @@ class T_node():
 		
 def get_oplist(
 	root	:	T_node
-):
+) -> list:
 	'''
 	This function is the recursive intiator for a transformation tree to flatten into an operational list.<br>
 	### format
@@ -746,8 +747,53 @@ def pop2feat(
 
 	#get the shortest common supersequence from all tstacks in one go
 	#NOTE this function will result in a final string of operations for full transforming NOTE#
-	
+	#t, i is transformation ID and stack indices for correlating transformation
+	t_supseq, i_supseq = utility.shortest_common_supersequence(seqs=tstacks)
 
-	#create hotloop for operating patterns
-	#consider also popping items of oplists
+	#create hotloop for operating on oplist patterns
+	for op, (t_ss, i_ss) in enumerate(zip(t_supseq, i_supseq), 1):
+
+		#NOTE beginning vstk pop and push interaction section NOTE#
+		#check always to see if any vstk operations need completed first!
+		
+		#get indices of all push instances
+		vstk_push_indices = [
+			i for i, lst in enumerate(oplists)
+			if lst[0][0]==0 and lst[0][1]==-1
+		]
+
+		#get indices of all pop instances
+		vstk_pop_indices = [
+			i for i, lst in enumerate(oplists)
+			if lst[0][0]==0 and lst[0][1]==-2
+		]
+
+		#push all requested instances of vstk from collected instances
+		for i in vstk_push_indices:
+			vstk[i].append(xptr[i])
+
+		#pop all requested instances of vstk from collected instances
+		for i in vstk_pop_indices:
+			vstk[i].pop()
+
+		#then, for all oplists, we can combine and remove all vstk push/pop interactions
+		vstk_poppush_indices = list(set(vstk_pop_indices)|set(vstk_push_indices))
+
+		#remove pop/push operations in oplists
+		for i in vstk_poppush_indices:
+			#operation lists are moving front to back, so oplist pop is always zero
+			oplists[i].pop(0)
+
+		#NOTE ending vstk pop / push interaction section NOTE#
+
+		#here we need to add transformation based interpretation
+		
+		#we will be taking i_ss and using that as a mask
+		# as in using the where= parameter in the actual transformation functions and use out= too!
+		#call the transformation function using match case and t_ss as id
+		#then pop all items with i_ss from oplist
+
+		pass
+
+	#consider also popping items off oplists
 	
