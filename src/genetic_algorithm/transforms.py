@@ -30,6 +30,7 @@ for both visual interpretation and algorithmic data transforming.
 '''
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 import bottleneck as bn
 from typing import Optional, Union
 import random
@@ -792,38 +793,439 @@ def forest2features(
 		# as in using the where= parameter in the actual transformation functions and use out= too!
 		#call the transformation function using match case and t_ss as id
 		#then pop all items with i_ss from oplist
+
+		#turn destination indices into numpy array for numpy optimization
+		op_idx  = np.asarray(i_ss,  dtype=np.intp)
+		
 		match(t_ss):
 
+			#this case is entered for the identity function, 
+			#which holds place for fetching raw feature data
 			case 0:
-				# make sure they’re integer arrays
-				idx_arr  = np.asarray(idx,  dtype=np.intp)   # destination columns in xptr
-				flag_arr = np.asarray(flag, dtype=np.intp)   # source columns in raw_features
 
-				# this does, for each k:
-				#    xptr[:, idx_arr[k]] = raw_features[:, flag_arr[k]]
-				xptr[:, idx_arr] = raw_features[:, flag_arr]
+				#go get the raw feature indices from the flag of each first op in the oplist
+				rf_idx = [oplists[i][0][1] for i in i_ss]
 
+				#turn retrieving index list into numpy array
+				flag_arr = np.asarray(rf_idx, dtype=np.int16)
+
+				#this does, for each k:
+				#xptr[:, op_idx[k]] = raw_features[:, flag_arr[k]]
+				xptr[:, op_idx] = x_raw[:, flag_arr]
+
+			#this case is entered for the function max(x, delta)
 			case 1:
-				pass
 
+				#this is using in place rolling max with per-column window sizes to 
+				#accomodate to inequal delta values for different sources
+
+				#go get the deltas and turn them into numpy array
+				#deltas are located in the first slot of parameter section of oplist
+				deltas = [oplists[i][0][2][0] for i in i_ss]
+				
+				#turn delta in to numpy array
+				deltas = np.asarray(deltas, dtype=int)
+
+				T = xptr.shape[0]
+
+				#we can do matching deltas at one time, 
+				#so we will see if any match to speed it up
+				unique_deltas = np.unique(deltas)
+
+				#loop over each delta value
+				for delta in unique_deltas:
+
+					#go and get columns with the current delta value
+					cols = op_idx[deltas==delta]
+
+					#view of xptr for just those columns
+					block = xptr[:, cols]
+
+					#repeat first row (delta-1) times for padding
+					#this is going to have shape (delta-1) by k
+					pad = np.repeat(block[0:1, :], delta-1, axis=0)
+
+					#vstack to form the padded array
+					#this now has shape (T+delta-1) by k
+					ap = np.vstack((pad, block))
+
+					#look at the given window
+					win = sliding_window_view(ap, window_shape=delta, axis=0)
+
+					#allocate some memory for the outputs
+					out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
+
+					#compute the max over each window and put it into the output buffer
+					np.maximum.reduce(win, axis=1, out=out_buf)
+
+					#write the results back and go again through the loop
+					xptr[:, cols] = out_buf
+
+					#had a lot of crashing errors in my old code, 
+					#hopefully excessively calling delete will keep the code running fine
+					del cols, block, pad, ap, win, out_buf
+
+				#delete all long term holders once these operations are done
+				del idx, deltas, unique_deltas
+
+
+			#this case is entered for the function min(x, delta)
 			case 2:
-				pass
+				
+				#this is using in place rolling min with per-column window sizes to 
+				#accomodate to inequal delta values for different sources
 
+				#go get the deltas and turn them into numpy array
+				#deltas are located in the first slot of parameter section of oplist
+				deltas = [oplists[i][0][2][0] for i in i_ss]
+				
+				#turn delta in to numpy array
+				deltas = np.asarray(deltas, dtype=int)
+
+				T = xptr.shape[0]
+
+				#we can do matching deltas at one time, 
+				#so we will see if any match to speed it up
+				unique_deltas = np.unique(deltas)
+
+				#loop over each delta value
+				for delta in unique_deltas:
+
+					#go and get columns with the current delta value
+					cols = op_idx[deltas==delta]
+
+					#view of xptr for just those columns
+					block = xptr[:, cols]
+
+					#repeat first row (delta-1) times for padding
+					#this is going to have shape (delta-1) by k
+					pad = np.repeat(block[0:1, :], delta-1, axis=0)
+
+					#vstack to form the padded array
+					#this now has shape (T+delta-1) by k
+					ap = np.vstack((pad, block))
+
+					#look at the given window
+					win = sliding_window_view(ap, window_shape=delta, axis=0)
+
+					#allocate some memory for the outputs
+					out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
+
+					#compute the min over each window and put it into the output buffer
+					np.minimum.reduce(win, axis=1, out=out_buf)
+
+					#write the results back and go again through the loop
+					xptr[:, cols] = out_buf
+
+					#had a lot of crashing errors in my old code, 
+					#hopefully excessively calling delete will keep the code running fine
+					del cols, block, pad, ap, win, out_buf
+
+				#delete all long term holders once these operations are done
+				del idx, deltas, unique_deltas
+
+			#this case is entered for the function avg(x, delta)
 			case 3:
-				pass
 
+				#going to convert delta values into a numpy array to ensure numpy smoothness
+				deltas = np.asarray(deltas, dtype=int)
+				
+				T = xptr.shape[0]
+
+				#get each distinct delta value to run similar values in parallel
+				unique_deltas = np.unique(deltas)
+				
+				#here we are going to precompute counts (1, 2, .., min(delta, T)) for each delta
+				counts = {
+					delta: np.arange(1, min(delta, T) + 1, dtype=xptr.dtype)
+					for delta in unique_deltas
+				}
+
+				#loop over each column and its window size
+				for col, delta in zip(idx, deltas):
+					
+					#go get the colums that can be done in parallel
+					x = xptr[:, col]
+					
+					#sum up all values with cumsum this will make the computation way way easier
+					csum = x.cumsum()
+					
+					#allocate some memory for output
+					out = np.empty(T, dtype=xptr.dtype)
+
+					#number of growing window steps where we have not reached sample delta
+					m = counts[delta].size
+					
+					#compute avg for partial windows if needed
+					out[:m] = csum[:m] / counts[delta]
+					
+					if T > delta:
+
+						#compute the avg for full delta window for remaining entries
+						out[delta:] = (csum[delta:] - csum[:-delta]) / delta
+
+					#write the results back into the array
+					xptr[:, col] = out
+					
+					#delete the temp variables for free memory immediately
+					#hoping this actually helps this run indef.
+					del x, csum, out
+
+				#clean up the helper arrays for this function now that the operations are complete
+				del idx, deltas, unique_deltas, counts
+
+			#this case is entered for the function neg(x)
 			case 4:
-				pass
+				
+				#really almost nothing is needed here
+				#multiply the columns by -1
+				xptr[:, op_idx] *= -1
 
+			#this case is entered for the function dif(x, alpha)
 			case 5:
-				pass
+				
+				#first we need to use opidx to find the arrays in xptr that need
+				#filled in (fully with the provided constant values)
+				missing = [oplists[i][0][1] for i in op_idx]
+				
+				#and convert it to numpy array for smoothy smoothy smoothness? 
+				#no idea if it actually helps much
+				missing = np.asarray(missing, dtype=int)
 
+				#num rows and columns to operate on 
+				T = xptr.shape[0]
+				k = op_idx.size
+
+				#first we have to build x (in the function definition of "x - alpha")
+				#we will do this by stacking vstk[i][-1] for each i in op_idx
+				x = np.stack([vstk[i][-1] for i in op_idx], axis=1)
+			
+				#second we need to build alpha (in the function definition of "x - alpha")
+				#this happens to be partially in xptr depending where alpha values are coming from
+				#if alpha is still a constant then it is not in xptr and we need to bring it in
+				#if alpha is some given result of a branch from the transformation tree, 
+				#then it will already be in xptr and we need to do nothing until the actual dif operation
+
+				#use missing boolean mask to find which indices to fill
+				fill_cols = op_idx[missing]
+
+				#get the constant values only from missing indices
+				#these will be used for column filling
+				consts = np.array([oplists[col][0][2][0] for col in fill_cols], dtype=xptr.dtype)
+
+				#fill in the 'empty' columns with the constant alphas 
+				xptr[:, fill_cols] = consts
+
+				#now here is the actual difference operation
+				#single c loop
+				np.subtract(x, xptr[:, op_idx], out=xptr[:, op_idx])
+
+				#this entire 2d array is no longer needed and the vstk value will be popped in the
+				#subsequent operation in oplist of those operation stacks
+				del x
+
+			#this case is entered for the function var(x, alpha)
 			case 6:
-				pass
+				
+				#first we need to use opidx to find the arrays in xptr that need
+				#filled in (fully with the provided constant values)
+				missing = [oplists[i][0][1] for i in op_idx]
+				
+				#and convert it to numpy array for smoothy smoothy smoothness? 
+				#no idea if it actually helps much
+				missing = np.asarray(missing, dtype=int)
 
+				#num rows and columns to operate on 
+				T = xptr.shape[0]
+				k = op_idx.size
+
+				#first we have to build x (in the function definition of "x - alpha")
+				#we will do this by stacking vstk[i][-1] for each i in op_idx
+				x = np.stack([vstk[i][-1] for i in op_idx], axis=1)
+			
+				#second we need to build alpha (in the function definition of "x - alpha")
+				#this happens to be partially in xptr depending where alpha values are coming from
+				#if alpha is still a constant then it is not in xptr and we need to bring it in
+				#if alpha is some given result of a branch from the transformation tree, 
+				#then it will already be in xptr and we need to do nothing until the actual dif operation
+
+				#use missing boolean mask to find which indices to fill
+				fill_cols = op_idx[missing]
+
+				#get the constant values only from missing indices
+				#these will be used for column filling
+				consts = np.array([oplists[col][0][2][0] for col in fill_cols], dtype=xptr.dtype)
+
+				#fill in the 'empty' columns with the constant alphas 
+				xptr[:, fill_cols] = consts
+
+				#now here is the actual difference operation
+				#single c loop
+				np.subtract(x, xptr[:, op_idx], out=xptr[:, op_idx])
+
+				#the only difference is here we are squaring the result
+				#this is a loop in C and also in place
+				xptr[:, op_idx] **= 2
+
+				#this entire 2d array is no longer needed and the vstk value will be popped in the
+				#subsequent operation in oplist of those operation stacks
+				del x
+
+			#this case is entered for the function rng(x, delta, delta2)
 			case 7:
-				pass
 
+				#NOTE begin creation of max matrix NOTE#
+
+				#this is using in place rolling max with per-column window sizes to 
+				#accomodate to inequal delta values for different sources
+
+				#go get the deltas and turn them into numpy array
+				#deltas are located in the first slot of parameter section of oplist
+				deltas = [oplists[i][0][2][1] for i in i_ss]
+				
+				#turn delta in to numpy array
+				deltas = np.asarray(deltas, dtype=int)
+
+				T = xptr.shape[0]
+
+				#we can do matching deltas at one time, 
+				#so we will see if any match to speed it up
+				unique_deltas = np.unique(deltas)
+
+				x_max = np.empty_like(xptr)
+
+				#loop over each delta value
+				for delta in unique_deltas:
+
+					#go and get columns with the current delta value
+					cols = op_idx[deltas==delta]
+
+					#view of xptr for just those columns
+					block = xptr[:, cols]
+
+					#repeat first row (delta-1) times for padding
+					#this is going to have shape (delta-1) by k
+					pad = np.repeat(block[0:1, :], delta-1, axis=0)
+
+					#vstack to form the padded array
+					#this now has shape (T+delta-1) by k
+					ap = np.vstack((pad, block))
+
+					#look at the given window
+					win = sliding_window_view(ap, window_shape=delta, axis=0)
+
+					#allocate some memory for the outputs
+					out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
+
+					#compute the max over each window and put it into the output buffer
+					np.maximum.reduce(win, axis=1, out=out_buf)
+
+					#write the results back and go again through the loop
+					x_max[:, cols] = out_buf
+
+					#had a lot of crashing errors in my old code, 
+					#hopefully excessively calling delete will keep the code running fine
+					del cols, block, pad, ap, win, out_buf
+
+				#delete all long term holders once these operations are done
+				del idx, deltas, unique_deltas
+
+				#NOTE end creation of max matrix NOTE#
+
+				#NOTE begin creation of min matrix NOTE#
+
+				#this is using in place rolling min with per-column window sizes to 
+				#accomodate to inequal delta values for different sources
+
+				#go get the deltas and turn them into numpy array
+				#deltas are located in the first slot of parameter section of oplist
+				deltas = [oplists[i][0][2][0] for i in i_ss]
+				
+				#turn delta in to numpy array
+				deltas = np.asarray(deltas, dtype=int)
+
+				T = xptr.shape[0]
+
+				#we can do matching deltas at one time, 
+				#so we will see if any match to speed it up
+				unique_deltas = np.unique(deltas)
+
+				x_min = np.empty_like(xptr)
+
+				#loop over each delta value
+				for delta in unique_deltas:
+
+					#go and get columns with the current delta value
+					cols = op_idx[deltas==delta]
+
+					#view of xptr for just those columns
+					block = xptr[:, cols]
+
+					#repeat first row (delta-1) times for padding
+					#this is going to have shape (delta-1) by k
+					pad = np.repeat(block[0:1, :], delta-1, axis=0)
+
+					#vstack to form the padded array
+					#this now has shape (T+delta-1) by k
+					ap = np.vstack((pad, block))
+
+					#look at the given window
+					win = sliding_window_view(ap, window_shape=delta, axis=0)
+
+					#allocate some memory for the outputs
+					out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
+
+					#compute the min over each window and put it into the output buffer
+					np.minimum.reduce(win, axis=1, out=out_buf)
+
+					#write the results back and go again through the loop
+					x_min[:, cols] = out_buf
+
+					#had a lot of crashing errors in my old code, 
+					#hopefully excessively calling delete will keep the code running fine
+					del cols, block, pad, ap, win, out_buf
+
+				#delete all long term holders once these operations are done
+				del idx, deltas, unique_deltas
+
+				#NOTE end creation of min matrix NOTE#
+
+				#now that we have all four matricies needed
+				#   x - x_min
+				#     over
+				# x_max - x_min
+
+				#we can proceed with a more memory efficient approach
+				
+				#form the denominator first
+				x_denom = np.empty_like(xptr)
+
+				#do subtraction in denominator
+				np.subtract(x_max[:, op_idx], x_min[:, op_idx], out=x_denom[:, op_idx])
+
+				#we now no longer need x_max
+				del x_max
+
+				#do subtraction in numerator
+				np.subtract(xptr[:, op_idx], x_min[: op_idx], out=xptr[:, op_idx])
+
+				#we no longer need x_min
+				del x_min
+
+				#now do division operation
+				np.divide(xptr[:, op_idx], x_denom[:, op_idx], out=xptr[:, op_idx])
+
+				#we no longer need the denominator
+				del x_denom
+
+				#now we can subtract the .5 in place
+				#this operation makes sense when pulling from log space
+				#so that exciting functionality can work even on ranged values!
+				#although only drawback is it will be bias to excitation on the positive value end
+				#of whatever is being analyzed
+				xptr[:, op_idx] -= 0.5
+
+			#this case is entered for the function hkp(x, kappa)
 			case 8:
 				pass
 
