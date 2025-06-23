@@ -36,7 +36,7 @@ from typing import Optional, Union
 import random
 from collections import deque
 from dataclasses import dataclass, field
-import utility
+import genetic_algorithm.utility as utility
 
 
 ## NOTE BEGIN TRANSFORMATION FUNCTIONS NOTE ##
@@ -326,7 +326,7 @@ rrf_map = {
 #NOTE NOTE NOTE DEV NOTE may want to consider option to dissolve rrf map during generation
 
 
-class T_node():
+class T_node:
 	'''
 		# Transformation Tree Node #
 		### info: ###
@@ -351,9 +351,6 @@ class T_node():
 		- random:
 		- - parameter used if an entirely new entirely random node should be generated
 
-	'''
-
-	'''
 	function numbers:
 	0- identity
 	1- max 
@@ -365,13 +362,12 @@ class T_node():
 	7- rng
 	8- hkp
 	'''
-
 	def __init__(
 		self,
 		type	:	int				=	0,
-		x		:	int|"T_node"	=	0,
+		x		:	Union[int,"T_node"]	=	0,
 		kappa	:	float			=	None,
-		alpha	:	float|"T_node"	=	None,
+		alpha	:	Union[float,"T_node"]	=	None,
 		delta	:	int				=	None,
 		delta2	:	int				=	None,
 		random	:	bool	=	False
@@ -384,21 +380,18 @@ class T_node():
 		- 
 		'''
 		
+		
+		self._type	= type
+		self._x		= x
+		self._kappa = kappa
+		self._alpha = alpha
+		self._delta = delta
+		self._delta2= delta2
 		#check to see if this node came in as total random
 		if(random):
 			self.random()
 		
-		#if the node is not coming in as random, assign attr per parameters
-		else:
-			self._type	= type
-			self._x		= x
-			self._kappa = kappa
-			self._alpha = alpha
-			self._delta = delta
-			self._delta2= delta2
-
 		
-		return
 	
 	def mutate_tree(
 		self
@@ -574,7 +567,7 @@ class T_node():
 
 				#negative type suggests x is from top of vstk
 				#(1) flag value suggests alpha never made it to xptr and is passed in
-				tlist.append([-1*self._type, 1, (self._alpha)])
+				tlist.append([-1*self._type, 1, (self._alpha,)])
 
 			#now we also need to pop the used variable from vstk
 			#we will represent this with a flag of (-2)
@@ -594,7 +587,7 @@ class T_node():
 			case 1|2|3:
 
 				#this case consists of the use of delta
-				tlist.append([self._type, 0, (self._delta)])
+				tlist.append([self._type, 0, (self._delta,)])
 
 			case 4:
 
@@ -609,7 +602,7 @@ class T_node():
 			case 8:
 
 				#this case consists of the use of kappa
-				tlist.append([self._type, 0, (self._kappa)])
+				tlist.append([self._type, 0, (self._kappa,)])
 
 			case _:
 				raise ValueError(f"FATAL: match-case failed checking T_node trans_type, got {self._type}")
@@ -646,6 +639,54 @@ class T_node():
 			return self._x.get_rrf()
 		else:
 			return self._x
+		
+	@property
+	def alpha(self):
+		return self._alpha
+	
+	@alpha.setter
+	def alpha(self, new:any):
+		self._alpha
+
+	@property
+	def delta(self):
+		return self._delta
+	
+	@delta.setter
+	def delta(self, new:any):
+		self._delta
+
+	@property
+	def delta2(self):
+		return self._delta2
+	
+	@delta2.setter
+	def delta2(self, new:any):
+		self._delta2
+
+	@property
+	def kappa(self):
+		return self._kappa
+	
+	@kappa.setter
+	def kappa(self, new:any):
+		self._kappa
+
+	@property
+	def x(self):
+		return self._x
+	
+	@x.setter
+	def x(self, new:any):
+		self._x
+
+	@property
+	def type(self):
+		return self._type
+	
+	@type.setter
+	def type(self, new:any):
+		self._type
 		
 def get_oplist(
 	root	:	T_node
@@ -725,7 +766,7 @@ def forest2features(
 	'''
 
 	#initiate xptr holding dynamic data parallel with population
-	xptr = np.empty(len(population), dtype=object)
+	xptr = np.empty((x_raw.shape[0],len(population)))
 
 	#initiate list of oplists parallel with population
 	oplists = np.empty(len(population), dtype=list)
@@ -736,8 +777,11 @@ def forest2features(
 	#initiate list of variable stacks parallel with population
 	vstk = np.empty(len(population), dtype=list)
 
+	for i in range(vstk.shape[0]):
+		vstk[i] = []
+
 	#collect oplists for each member of population
-	for i, this_tree in population:
+	for i, this_tree in enumerate(population):
 
 		#for each tree, get the op list
 		oplists[i] = get_oplist(root=this_tree)
@@ -757,21 +801,23 @@ def forest2features(
 		#NOTE beginning vstk pop and push interaction section NOTE#
 		#check always to see if any vstk operations need completed first!
 		
+		#print([oplists[i] for i, _ in enumerate(oplists)])
+
 		#get indices of all push instances
 		vstk_push_indices = [
 			i for i, lst in enumerate(oplists)
-			if lst[0][0]==0 and lst[0][1]==-1
+			if lst and lst[0][0]==0 and lst[0][1]==-1
 		]
 
 		#get indices of all pop instances
 		vstk_pop_indices = [
 			i for i, lst in enumerate(oplists)
-			if lst[0][0]==0 and lst[0][1]==-2
+			if lst and lst[0][0]==0 and lst[0][1]==-2
 		]
 
 		#push all requested instances of vstk from collected instances
 		for i in vstk_push_indices:
-			vstk[i].append(xptr[i])
+			vstk[i].append(xptr[:,i])
 
 		#pop all requested instances of vstk from collected instances
 		for i in vstk_pop_indices:
@@ -795,7 +841,7 @@ def forest2features(
 		#then pop all items with i_ss from oplist
 
 		#turn destination indices into numpy array for numpy optimization
-		op_idx  = np.asarray(i_ss,  dtype=np.intp)
+		op_idx  = np.asarray(i_ss,  dtype=int)
 		
 		match(t_ss):
 
@@ -807,7 +853,9 @@ def forest2features(
 				rf_idx = [oplists[i][0][1] for i in i_ss]
 
 				#turn retrieving index list into numpy array
-				flag_arr = np.asarray(rf_idx, dtype=np.int16)
+				flag_arr = np.asarray(rf_idx, dtype=int)
+
+				#print(xptr.shape, x_raw.shape)
 
 				#this does, for each k:
 				#xptr[:, op_idx[k]] = raw_features[:, flag_arr[k]]
@@ -821,6 +869,8 @@ def forest2features(
 
 				#go get the deltas and turn them into numpy array
 				#deltas are located in the first slot of parameter section of oplist
+				#print(oplists[i_ss[0]], oplists[i_ss[0]][0], oplists[i_ss[0]][0][2])
+
 				deltas = [oplists[i][0][2][0] for i in i_ss]
 				
 				#turn delta in to numpy array
@@ -836,7 +886,9 @@ def forest2features(
 				for delta in unique_deltas:
 
 					#go and get columns with the current delta value
-					cols = op_idx[deltas==delta]
+					cols = op_idx[deltas == delta]
+
+					#print(cols.shape)
 
 					#view of xptr for just those columns
 					block = xptr[:, cols]
@@ -853,10 +905,14 @@ def forest2features(
 					win = sliding_window_view(ap, window_shape=delta, axis=0)
 
 					#allocate some memory for the outputs
-					out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
+					#out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
 
 					#compute the max over each window and put it into the output buffer
-					np.maximum.reduce(win, axis=1, out=out_buf)
+					#np.maximum.reduce(win, axis=1, out=out_buf)
+
+					out_buf = win.max(axis=2)
+
+					#print(win.shape)
 
 					#write the results back and go again through the loop
 					xptr[:, cols] = out_buf
@@ -866,7 +922,7 @@ def forest2features(
 					del cols, block, pad, ap, win, out_buf
 
 				#delete all long term holders once these operations are done
-				del idx, deltas, unique_deltas
+				del deltas, unique_deltas
 
 
 			#this case is entered for the function min(x, delta)
@@ -909,10 +965,12 @@ def forest2features(
 					win = sliding_window_view(ap, window_shape=delta, axis=0)
 
 					#allocate some memory for the outputs
-					out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
+					#out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
 
 					#compute the min over each window and put it into the output buffer
-					np.minimum.reduce(win, axis=1, out=out_buf)
+					#np.minimum.reduce(win, axis=1, out=out_buf)
+
+					out_buf = win.min(axis=2)
 
 					#write the results back and go again through the loop
 					xptr[:, cols] = out_buf
@@ -922,10 +980,14 @@ def forest2features(
 					del cols, block, pad, ap, win, out_buf
 
 				#delete all long term holders once these operations are done
-				del idx, deltas, unique_deltas
+				del deltas, unique_deltas
 
 			#this case is entered for the function avg(x, delta)
 			case 3:
+
+				#go get the deltas and turn them into numpy array
+				#deltas are located in the first slot of parameter section of oplist
+				deltas = [oplists[i][0][2][0] for i in i_ss]
 
 				#going to convert delta values into a numpy array to ensure numpy smoothness
 				deltas = np.asarray(deltas, dtype=int)
@@ -942,7 +1004,7 @@ def forest2features(
 				}
 
 				#loop over each column and its window size
-				for col, delta in zip(idx, deltas):
+				for col, delta in zip(op_idx, deltas):
 					
 					#go get the colums that can be done in parallel
 					x = xptr[:, col]
@@ -972,7 +1034,7 @@ def forest2features(
 					del x, csum, out
 
 				#clean up the helper arrays for this function now that the operations are complete
-				del idx, deltas, unique_deltas, counts
+				del deltas, unique_deltas, counts
 
 			#this case is entered for the function neg(x)
 			case 4:
@@ -999,6 +1061,8 @@ def forest2features(
 				#first we have to build x (in the function definition of "x - alpha")
 				#we will do this by stacking vstk[i][-1] for each i in op_idx
 				x = np.stack([vstk[i][-1] for i in op_idx], axis=1)
+
+				#print([vstk[i][-1] for i in op_idx])
 			
 				#second we need to build alpha (in the function definition of "x - alpha")
 				#this happens to be partially in xptr depending where alpha values are coming from
@@ -1007,7 +1071,9 @@ def forest2features(
 				#then it will already be in xptr and we need to do nothing until the actual dif operation
 
 				#use missing boolean mask to find which indices to fill
-				fill_cols = op_idx[missing]
+				fill_cols = op_idx[missing==1]
+
+				#print(x.shape)
 
 				#get the constant values only from missing indices
 				#these will be used for column filling
@@ -1043,6 +1109,8 @@ def forest2features(
 				#we will do this by stacking vstk[i][-1] for each i in op_idx
 				x = np.stack([vstk[i][-1] for i in op_idx], axis=1)
 			
+				#print(vstk.shape, "-----", vstk[op_idx[0]].shape)
+
 				#second we need to build alpha (in the function definition of "x - alpha")
 				#this happens to be partially in xptr depending where alpha values are coming from
 				#if alpha is still a constant then it is not in xptr and we need to bring it in
@@ -1050,7 +1118,7 @@ def forest2features(
 				#then it will already be in xptr and we need to do nothing until the actual dif operation
 
 				#use missing boolean mask to find which indices to fill
-				fill_cols = op_idx[missing]
+				fill_cols = op_idx[missing==1]
 
 				#get the constant values only from missing indices
 				#these will be used for column filling
@@ -1115,10 +1183,12 @@ def forest2features(
 					win = sliding_window_view(ap, window_shape=delta, axis=0)
 
 					#allocate some memory for the outputs
-					out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
+					#out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
 
 					#compute the max over each window and put it into the output buffer
-					np.maximum.reduce(win, axis=1, out=out_buf)
+					#np.maximum.reduce(win, axis=1, out=out_buf)
+
+					out_buf = win.max(axis=2)
 
 					#write the results back and go again through the loop
 					x_max[:, cols] = out_buf
@@ -1128,7 +1198,7 @@ def forest2features(
 					del cols, block, pad, ap, win, out_buf
 
 				#delete all long term holders once these operations are done
-				del idx, deltas, unique_deltas
+				del deltas, unique_deltas
 
 				#NOTE end creation of max matrix NOTE#
 
@@ -1173,10 +1243,12 @@ def forest2features(
 					win = sliding_window_view(ap, window_shape=delta, axis=0)
 
 					#allocate some memory for the outputs
-					out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
+					#out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
 
 					#compute the min over each window and put it into the output buffer
-					np.minimum.reduce(win, axis=1, out=out_buf)
+					#np.minimum.reduce(win, axis=1, out=out_buf)
+
+					out_buf = win.min(axis=2)
 
 					#write the results back and go again through the loop
 					x_min[:, cols] = out_buf
@@ -1186,7 +1258,7 @@ def forest2features(
 					del cols, block, pad, ap, win, out_buf
 
 				#delete all long term holders once these operations are done
-				del idx, deltas, unique_deltas
+				del deltas, unique_deltas
 
 				#NOTE end creation of min matrix NOTE#
 
@@ -1207,7 +1279,8 @@ def forest2features(
 				del x_max
 
 				#do subtraction in numerator
-				np.subtract(xptr[:, op_idx], x_min[: op_idx], out=xptr[:, op_idx])
+				xptr[:, op_idx] -= x_min[:,op_idx]
+				#np.subtract(xptr[:, op_idx], x_min[: op_idx], out=xptr[:, op_idx])
 
 				#we no longer need x_min
 				del x_min
@@ -1227,7 +1300,27 @@ def forest2features(
 
 			#this case is entered for the function hkp(x, kappa)
 			case 8:
-				pass
+
+				#go get the kappas and turn them into numpy array
+				#kappas are located in the first slot of parameter section of oplist
+				kappas = [oplists[i][0][2][0] for i in i_ss]
+				
+				#turn delta in to numpy array
+				kappas = np.asarray(kappas, dtype=np.float32)
+
+				#simplify coefficient to a single variable alpha
+				alphas = np.exp(-kappas)
+
+				#run recursion in a single loop, not sure if there is a simpler way to
+				#go about this or anything in parallel with summations,
+				#but I honestly did not feel like trying to figure it out this 
+				#should be fast enough
+				T = xptr.shape[0]
+				for t in range(1, T):
+
+					#vectorized update across selected columns in one loop
+					#this is in C
+					xptr[t, op_idx] += alphas * xptr[t-1, op_idx]
 
 			case _:
 				raise ValueError(f"t_ss value is not valid in forest2feature. ({t_ss})")
@@ -1236,6 +1329,9 @@ def forest2features(
 		for i in i_ss:
 			oplists[i].pop(0)
 
-		pass
+	#delete variables, they honestly should not have anything 
+	#not sure if residual memory holds or anything
+	del vstk, tstacks
 
-	
+	#once we have reached here, all operations are completed and we can return completed xptr array
+	return xptr
