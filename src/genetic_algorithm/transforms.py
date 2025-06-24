@@ -392,9 +392,9 @@ class T_node:
 			self.random()
 		
 		
-	
 	def mutate_tree(
-		self
+		self,
+		alpha_bias	:	float	=	0.5
 	):
 		'''
 		Considering all parameter mutations are done in the<br>
@@ -409,39 +409,41 @@ class T_node:
 
 			#this node is not a leaf node, must mutate children instead
 			#check first to see if there can be multiple children from this node
-			#at the same time, if the first two conditions are true,
-			#then for the whole statement to be true, a coin flip is made.
-			#coin flip is for code minimization to see if alpha should be mutated instead of x
-			#if it returns false then we can proceed with one X mutation
+
+			#check to see if this non-leaf node has an alpha branch/leaf
+			#as that can be mutated as well
 			if(self._type==5 or self._type==6):
 
-				#are there two branches that can be mutated? (two children, x and alpha)
-				if(isinstance(self._alpha, T_node)):
+				#there is now a split in the branches, we much decide which way to go
+				#if this is entered that means we are going to mutate the alpha branch/leaf
+				if(random.random()<alpha_bias):
 
-					#if there are two branches, coin flip!
-					if(random.random()>0.5):
+					#check to see if the alpha branch must be iterated further or if it is a leaf (constant)
+					#this if is entered if we are iterating down the alpha branch
+					if(isinstance(self._alpha, T_node)):
 
 						#go to alpha child node and mutate alpha branch
 						self._alpha.mutate_tree()
 
+					#this else is entered when alpha is a constant and must be mutated into a new node
 					else:
 
-						#go to x child node and mutate x branch
-						self._x.mutate_tree()
+						#give it a (1-1/e)% chance of being mutated
+						if(np.log(np.random.rand())>-1):
+							#in this case, generate new random and relevant alpha transformation
 
-				#if alpha can be mutated into a transformation
+							#starting with making alpha an empty node
+							self._alpha = T_node()
+
+							#since this node is a leaf, _x is safe and is an int.
+							self._alpha.random(rrf=self._x.get_rrf())
+
+				#this else is entered when there IS an alpha branch but it is
+				#decided that we are going to mutate down the x branch anyways
 				else:
 
-					#give it a (1-1/e)% chance of being mutated
-					if(np.log(np.random.rand())>-1):
-						#in this case, generate new random and relevant alpha transformation
-
-						#starting with making alpha an empty node
-						self._alpha = T_node()
-
-						#since this node is a leaf, _x is safe and is an int.
-						self._alpha.random(rrf=self._x.get_rrf())
-
+					#go to x child node and mutate x branch
+					self._x.mutate_tree()
 			
 			#if this is reached, that means the only mutatable branch is going to be x
 			else:
@@ -456,7 +458,8 @@ class T_node:
 			#keeping this between 1 and 2 using inverse transform sampling
 			#then differentiating between whether or not the mutation will be done ALSO on a possible child node
 			#depending on if the generated sample is over or under -1.5 (rounding)
-			child_mutation = True if np.log(np.random.rand()) < -1.5 else False
+			#child_mutation = True if np.log(np.random.rand()) < -1.5 else False
+			#NOTE this above block of text is depricated 6/24/25
 
 			#when this is reached, we have a type of 0 and an x of SOMETHING!
 			#so now we randomly pick a transformation type, shift x, then pick random relevant parameters
@@ -473,6 +476,7 @@ class T_node:
 			#pass the observed raw feature to the child node 
 			self._x._x = rrf
 
+			#assign constants based off of relevance to what node type is generated
 			match(self._type):
 
 				case 1|2|3|7:
@@ -497,8 +501,8 @@ class T_node:
 					self._kappa = round(-np.log(np.random.rand()), 3)
 
 		#if a mutation is being passed to the child, then go mutate child!
-		if(child_mutation):
-			self._x.mutate_tree()
+		#if(child_mutation):
+		#	self._x.mutate_tree()
 
 	def get_tlist(
 		self,
@@ -626,7 +630,8 @@ class T_node:
 		self._x = int(random.choice(rrf_map[rrf]))
 
 		#will anyone ever see this comment? <3 from Logan 6/15/2025 11:35pm
-		self.mutate_tree()
+		#self.mutate_tree()
+		#calling mutate in random depricated 6/24/25
 
 
 	def get_rrf(
@@ -740,6 +745,10 @@ def oplist2tstack(
 
 				#the only case that is added here is identity (feature grabbing)
 				tstack.append(0)
+
+			else:
+
+				tstack.append(op[1])
 	
 	return tstack
 
@@ -804,32 +813,32 @@ def forest2features(
 		#print([oplists[i] for i, _ in enumerate(oplists)])
 
 		#get indices of all push instances
-		vstk_push_indices = [
-			i for i, lst in enumerate(oplists)
-			if lst and lst[0][0]==0 and lst[0][1]==-1
-		]
+		#vstk_push_indices = [
+		#	i for i, lst in enumerate(oplists)
+		#	if lst and lst[0][0]==0 and lst[0][1]==-1
+		#]
 
 		#get indices of all pop instances
-		vstk_pop_indices = [
-			i for i, lst in enumerate(oplists)
-			if lst and lst[0][0]==0 and lst[0][1]==-2
-		]
+		#vstk_pop_indices = [
+		#	i for i, lst in enumerate(oplists)
+		#	if lst and lst[0][0]==0 and lst[0][1]==-2
+		#]
 
 		#push all requested instances of vstk from collected instances
-		for i in vstk_push_indices:
-			vstk[i].append(xptr[:,i])
+		#for i in vstk_push_indices:
+		#	vstk[i].append(xptr[:,i])
 
 		#pop all requested instances of vstk from collected instances
-		for i in vstk_pop_indices:
-			vstk[i].pop()
+		#for i in vstk_pop_indices:
+		#	vstk[i].pop()
 
 		#then, for all oplists, we can combine and remove all vstk push/pop interactions
-		vstk_poppush_indices = list(set(vstk_pop_indices)|set(vstk_push_indices))
+		#vstk_poppush_indices = list(set(vstk_pop_indices)|set(vstk_push_indices))
 
 		#remove pop/push operations in oplists
-		for i in vstk_poppush_indices:
-			#operation lists are moving front to back, so oplist pop is always zero
-			oplists[i].pop(0)
+		#for i in vstk_poppush_indices:
+		#	#operation lists are moving front to back, so oplist pop is always zero
+		#	oplists[i].pop(0)
 
 		#NOTE ending vstk pop / push interaction section NOTE#
 
@@ -1105,9 +1114,14 @@ def forest2features(
 				T = xptr.shape[0]
 				k = op_idx.size
 
+				for i in i_ss:
+					print(type(vstk[i]), len(vstk[i]))
+				print(missing)
+
 				#first we have to build x (in the function definition of "x - alpha")
 				#we will do this by stacking vstk[i][-1] for each i in op_idx
 				x = np.stack([vstk[i][-1] for i in op_idx], axis=1)
+				
 			
 				#print(vstk.shape, "-----", vstk[op_idx[0]].shape)
 
@@ -1286,7 +1300,9 @@ def forest2features(
 				del x_min
 
 				#now do division operation
-				np.divide(xptr[:, op_idx], x_denom[:, op_idx], out=xptr[:, op_idx])
+				np.divide(xptr[:, op_idx], x_denom[:, op_idx], out=xptr[:, op_idx], where=(x_denom[:, op_idx] != 0))
+
+				xptr[:, op_idx][x_denom[:, op_idx] == 0] = 0.5
 
 				#we no longer need the denominator
 				del x_denom
@@ -1300,6 +1316,8 @@ def forest2features(
 
 			#this case is entered for the function hkp(x, kappa)
 			case 8:
+
+				print('kappas',[oplists[i][0][2] for i in i_ss])
 
 				#go get the kappas and turn them into numpy array
 				#kappas are located in the first slot of parameter section of oplist
@@ -1321,6 +1339,15 @@ def forest2features(
 					#vectorized update across selected columns in one loop
 					#this is in C
 					xptr[t, op_idx] += alphas * xptr[t-1, op_idx]
+
+			case -1:
+				#push all requested instances of vstk from collected instances
+				for i in i_ss:
+					vstk[i].append(xptr[:,i])
+
+			case -2:
+				for i in i_ss:
+					vstk[i].pop()
 
 			case _:
 				raise ValueError(f"t_ss value is not valid in forest2feature. ({t_ss})")
