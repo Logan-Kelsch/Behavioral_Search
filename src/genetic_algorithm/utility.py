@@ -1,59 +1,57 @@
 from functools import lru_cache
 from typing import List, Any, Tuple
 
+
+
+from typing import List, Any, Tuple
+
 def shortest_common_supersequence(
     seqs: List[List[Any]]
 ) -> Tuple[List[Any], List[List[int]]]:
     """
-    Returns (scs, idx_lists) where
-      - scs is a shortest common supersequence of the input `seqs`
-      - idx_lists[i] is the list of sequence-indices that contributed
-        the element scs[i] (i.e. were advanced) at that position.
+    Greedy heuristic for shortest common supersequence:
+      - At each step, pick the element that matches the most sequences at their current front.
+      - Advance those sequences by one.
+      - Continue until all sequences are consumed.
+    Returns:
+      - scs: the greedy supersequence
+      - idx_lists: for each position in scs, the list of sequence indices advanced
     """
     k = len(seqs)
-    lengths = tuple(len(s) for s in seqs)
+    lengths = [len(s) for s in seqs]
+    pos = [0] * k
+    scs: List[Any] = []
+    idx_lists: List[List[int]] = []
 
-    @lru_cache(None)
-    def dp(pos: Tuple[int, ...]) -> Tuple[Tuple[Any, ...], Tuple[Tuple[int, ...], ...]]:
-        # If all sequences are fully consumed, no more symbols or indices
-        if pos == lengths:
-            return (), ()
+    while not all(pos[i] >= lengths[i] for i in range(k)):
+        # Gather candidates and which sequences they match
+        candidates = {}
+        for i in range(k):
+            if pos[i] < lengths[i]:
+                e = seqs[i][pos[i]]
+                candidates.setdefault(e, []).append(i)
 
-        # all next‐possible symbols
-        candidates = {
-            seqs[i][pos[i]]
-            for i in range(k)
-            if pos[i] < lengths[i]
-        }
+        # Pick the candidate covering the most sequences
+        # Tie-break by choosing the candidate with smallest repr
+        best_e = max(
+            candidates.items(),
+            key=lambda item: (len(item[1]), -ord(str(item[0])[0]) if isinstance(item[0], str) else len(item[1]))
+        )[0]
 
-        best_seq: Tuple[Any, ...] = ()
-        best_idxs: Tuple[Tuple[int, ...], ...] = ()
-        first = True
+        # Advance sequences matching best_e
+        advanced = []
+        for i in range(k):
+            if pos[i] < lengths[i] and seqs[i][pos[i]] == best_e:
+                pos[i] += 1
+                advanced.append(i)
 
-        for e in candidates:
-            # compute how far we advance in each sequence if we pick e
-            new_pos = list(pos)
-            advanced = []
-            for i in range(k):
-                if new_pos[i] < lengths[i] and seqs[i][new_pos[i]] == e:
-                    new_pos[i] += 1
-                    advanced.append(i)
-            new_pos = tuple(new_pos)
+        scs.append(best_e)
+        idx_lists.append(advanced)
 
-            # recurse
-            suffix_seq, suffix_idxs = dp(new_pos)
-
-            cand_seq = (e,)+suffix_seq
-            cand_idxs = (tuple(advanced),)+suffix_idxs
-
-            if first or len(cand_seq) < len(best_seq):
-                best_seq, best_idxs = cand_seq, cand_idxs
-                first = False
-
-        return best_seq, best_idxs
-
-    scs_tuple, idxs_tuple = dp(tuple([0]*k))
-    # convert to lists
-    scs = list(scs_tuple)
-    idx_lists = [list(tup) for tup in idxs_tuple]
     return scs, idx_lists
+
+# Example usage:
+# seqs = [[1,2,3], [2,1,3], [1,3,2]]
+# scs, idxs = shortest_common_supersequence(seqs)
+# print("SCS:", scs)
+# print("Indices:", idxs)

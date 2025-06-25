@@ -1114,9 +1114,9 @@ def forest2features(
 				T = xptr.shape[0]
 				k = op_idx.size
 
-				for i in i_ss:
-					print(type(vstk[i]), len(vstk[i]))
-				print(missing)
+				#for i in i_ss:
+				#	print(type(vstk[i]), len(vstk[i]))
+				#print(missing)
 
 				#first we have to build x (in the function definition of "x - alpha")
 				#we will do this by stacking vstk[i][-1] for each i in op_idx
@@ -1317,7 +1317,7 @@ def forest2features(
 			#this case is entered for the function hkp(x, kappa)
 			case 8:
 
-				print('kappas',[oplists[i][0][2] for i in i_ss])
+				#print('kappas',[oplists[i][0][2] for i in i_ss])
 
 				#go get the kappas and turn them into numpy array
 				#kappas are located in the first slot of parameter section of oplist
