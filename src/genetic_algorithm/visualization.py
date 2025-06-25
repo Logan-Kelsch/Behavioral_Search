@@ -3,39 +3,49 @@ from IPython.display import Image
 import numpy as np
 import matplotlib.pyplot as plt
 
+import pydot
+from IPython.display import Image
+
 def visualize_tree(root, filename='tree.png'):
     """
-    Recursively visualize a binary tree with children `._x` and `._alpha`
-    using pydot/Graphviz. Non-leaf nodes are labeled only by their `_type` attribute,
-    while leaf nodes use repr(node).
+    Visualize a binary tree with children `._x` and `._alpha` using pydot.
+    Non-leaf nodes are deduplicated (cached), while each leaf instance
+    is rendered uniquely even if repr(node) is identical.
     """
     graph = pydot.Dot('Tree', graph_type='digraph', rankdir='TB')
-    seen = {}  # map python id(node) -> graph node name
+    seen = {}  # cache for non-leaf nodes
+    leaf_counter = {'count': 0}  # mutable counter for unique leaf IDs
 
     def recurse(node):
         if node is None:
             return None
 
+        # Determine children
+        children = [(attr, getattr(node, attr, None))
+                    for attr in ('_x', '_alpha')
+                    if getattr(node, attr, None) is not None]
+
+        # Leaf node: always create a fresh graph node
+        if not children:
+            leaf_id = leaf_counter['count']
+            leaf_counter['count'] += 1
+            gname = f"leaf_{leaf_id}"
+            label = repr(node)
+            graph.add_node(pydot.Node(gname, label=label, shape='none'))
+            return gname
+
+        # Non-leaf: cache by object id
         nid = id(node)
         if nid in seen:
             return seen[nid]
 
-        # Determine children
-        children = [(attr, getattr(node, attr, None)) 
-                    for attr in ('_x', '_alpha') 
-                    if getattr(node, attr, None) is not None]
-
-        # Create label: non-leaf shows only _type, leaf shows repr(node)
-        if children:
-            label = f"T: {getattr(node, '_type', '')}"
-        else:
-            label = repr(node)
-
+        # Create non-leaf node with its _type
+        label = f"T: {getattr(node, '_type', '')}"
         gname = f"node_{nid}"
-        graph_node = pydot.Node(gname, label=label, shape='none')
-        graph.add_node(graph_node)
+        graph.add_node(pydot.Node(gname, label=label, shape='none'))
         seen[nid] = gname
 
+        # Recurse into children
         for attr, child in children:
             cname = recurse(child)
             graph.add_edge(pydot.Edge(gname, cname, label=attr))
@@ -45,6 +55,8 @@ def visualize_tree(root, filename='tree.png'):
     recurse(root)
     graph.write_png(filename)
     return Image(filename)
+
+
 
 def visualize_all_distributions(x):
     # grid layout: adjust ncols as needed

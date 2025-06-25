@@ -34,6 +34,7 @@ from numpy.lib.stride_tricks import sliding_window_view
 import bottleneck as bn
 from typing import Optional, Union
 import random
+import copy
 from collections import deque
 from dataclasses import dataclass, field
 import genetic_algorithm.utility as utility
@@ -394,7 +395,8 @@ class T_node:
 		
 	def mutate_tree(
 		self,
-		alpha_bias	:	float	=	0.5
+		alpha_bias	:	float	=	0.5,
+		alpha_branch_bias	:	float	=	(2/7)
 	):
 		'''
 		Considering all parameter mutations are done in the<br>
@@ -410,46 +412,77 @@ class T_node:
 			#this node is not a leaf node, must mutate children instead
 			#check first to see if there can be multiple children from this node
 
-			#check to see if this non-leaf node has an alpha branch/leaf
-			#as that can be mutated as well
-			if(self._type==5 or self._type==6):
+			#NOTE new addition [6/25/25] trees will be able to alpha branch at
+			#any given node whether or not it is a leaf node, purely based on probability NOTE
 
-				#there is now a split in the branches, we much decide which way to go
-				#if this is entered that means we are going to mutate the alpha branch/leaf
-				if(random.random()<alpha_bias):
+			#since this node is not a leaf, roll dice to see if we should alpha mutate here
+			if(random.random()>alpha_branch_bias):
 
-					#check to see if the alpha branch must be iterated further or if it is a leaf (constant)
-					#this if is entered if we are iterating down the alpha branch
-					if(isinstance(self._alpha, T_node)):
+				#push this current node off to tmp memory
+				tmp_node = copy.deepcopy(self)
+				#we are now working in a node that can be fully manipulated
 
-						#go to alpha child node and mutate alpha branch
-						self._alpha.mutate_tree()
+				#flip coin to see which branch will take the old node
+				if(random.random()>0.5):
 
-					#this else is entered when alpha is a constant and must be mutated into a new node
-					else:
+					self._x = tmp_node
+					self._alpha = 0
 
-						#give it a (1-1/e)% chance of being mutated
-						if(np.log(np.random.rand())>-1):
-							#in this case, generate new random and relevant alpha transformation
-
-							#starting with making alpha an empty node
-							self._alpha = T_node()
-
-							#since this node is a leaf, _x is safe and is an int.
-							self._alpha.random(rrf=self._x.get_rrf())
-
-				#this else is entered when there IS an alpha branch but it is
-				#decided that we are going to mutate down the x branch anyways
 				else:
 
-					#go to x child node and mutate x branch
-					self._x.mutate_tree()
-			
-			#if this is reached, that means the only mutatable branch is going to be x
+					new_x = T_node()
+					new_x.random()
+					self._x = new_x
+					self._alpha = tmp_node
+
+				#flip coin to see which transformation type this function will be now
+				if(random.random()>0.5):
+					self._type = 6
+				else:
+					self._type = 5
+
 			else:
 
-				#go to x child node and mutate x
-				self._x.mutate_tree()
+				#check to see if this non-leaf node has an alpha branch/leaf
+				#as that can be mutated as well
+				if(self._type==5 or self._type==6):
+
+					#there is now a split in the branches, we much decide which way to go
+					#if this is entered that means we are going to mutate the alpha branch/leaf
+					if(random.random()<alpha_bias):
+
+						#check to see if the alpha branch must be iterated further or if it is a leaf (constant)
+						#this if is entered if we are iterating down the alpha branch
+						if(isinstance(self._alpha, T_node)):
+
+							#go to alpha child node and mutate alpha branch
+							self._alpha.mutate_tree()
+
+						#this else is entered when alpha is a constant and must be mutated into a new node
+						else:
+
+							#give it a (1-1/e)% chance of being mutated
+							if(np.log(np.random.rand())>-1):
+								#in this case, generate new random and relevant alpha transformation
+
+								#starting with making alpha an empty node
+								self._alpha = T_node()
+
+								#since this node is a leaf, _x is safe and is an int.
+								self._alpha.random(rrf=self._x.get_rrf())
+
+					#this else is entered when there IS an alpha branch but it is
+					#decided that we are going to mutate down the x branch anyways
+					else:
+
+						#go to x child node and mutate x branch
+						self._x.mutate_tree()
+				
+				#if this is reached, that means the only mutatable branch is going to be x
+				else:
+
+					#go to x child node and mutate x
+					self._x.mutate_tree()
 
 		#if this else is entered, that means that the current node is a leaf node and will be mutated!
 		else:
