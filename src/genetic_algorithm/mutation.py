@@ -43,50 +43,8 @@ def quarter_forest_evolution(
 	f_size = len(iter_forest)
 	q_size = int(np.floor(f_size/4))
 
-	p_gen = transforms.forest2features(iter_forest, x_raw)
-	p = pd.DataFrame(p_gen)
+	for i in range(iterations):
 
-	visualization.visualize_all_distributions(x=p)
-
-	p_scores, p_treelist, p_scorelist = evaluation.evaluate_forest(p_gen,x_raw[:,3], n_bins=300,lag_range=(2,4))
-
-	#best_oplist = transforms.get_oplist(iter_forest[p_treelist[0]])
-	img = visualization.visualize_tree(iter_forest[p_treelist[0]])
-	display(img)
-
-	print('exiting preloop, entering loop')
-
-	for i in range(iterations-1):
-
-		tmp_forest = iter_forest
-
-		#remove all trees until top quarter exist
-		while(len(p_treelist) > q_size):
-			p_treelist.pop()
-
-		quarter_trees = set(p_treelist)
-		crnt_forest_size = len(iter_forest)
-		for k in range(crnt_forest_size-1,-1,-1):
-			if k not in quarter_trees:
-				iter_forest.pop(k)
-
-		print('popped all lists, adding all children')
-
-		#make 3 children for each surviving tree
-		for j in range(q_size):
-
-			for three in [0,1,2]:
-				iter_forest.append(
-					branch_ntimes(
-						copy.deepcopy(iter_forest[j]), 
-						int(-np.ceil(np.log(random.random())))
-					)
-			)
-
-		
-
-		#now have a filled forest for iteration
-			
 		p_gen = transforms.forest2features(iter_forest, x_raw)
 		p = pd.DataFrame(p_gen)
 
@@ -97,4 +55,30 @@ def quarter_forest_evolution(
 		#best_oplist = transforms.get_oplist(iter_forest[p_treelist[0]])
 		img = visualization.visualize_tree(iter_forest[p_treelist[0]])
 		display(img)
+
+		#identify trees to be kept
+		while(len(p_treelist) > q_size):
+			p_treelist.pop()
+
+		#pop all trees not in kept treelist
+		quarter_trees = set(p_treelist)
+		crnt_forest_size = len(iter_forest)
+		for k in range(crnt_forest_size-1,-1,-1):
+			if k not in quarter_trees:
+				iter_forest.pop(k)
+
+		print('popped all lists, adding all children')
+		if(i<iterations-1):
+			#make 3 children for each surviving tree
+			for j in range(q_size):
+
+				for three in [0,1,2]:
+					iter_forest.append(
+						branch_ntimes(
+							copy.deepcopy(iter_forest[j]), 
+							int(-np.ceil(np.log(random.random())))
+						)
+				)
+
+	return iter_forest
 		

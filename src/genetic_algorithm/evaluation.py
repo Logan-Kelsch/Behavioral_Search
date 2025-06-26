@@ -78,19 +78,19 @@ def evaluate_forest(
 			raw_pnl_dict[key] = raw_pnl
 			cum_pnl_dict[key] = cum_pnl
 
-			# Information Coefficient
+			#information Coefficient
 			ic = max(abs(returns_lagged[lag].corr(feat)) for lag in returns_lagged)
 
 			total_profit = raw_pnl.sum()
-			# consistency (R^2)
+			#consistency (R^2)
 			time_idx = np.arange(len(cum_pnl)).reshape(-1,1)
 			lr = LinearRegression().fit(time_idx, cum_pnl.values)
 			consistency = r2_score(cum_pnl.values, lr.predict(time_idx))
 
-			# infrequency
+			#infrequency
 			infrequency = np.sqrt(1.0 - exec_sig.sum()/n_samples)
 
-			# lnpl
+			#lnpl
 			sum_pos = raw_pnl[raw_pnl>0].sum()
 			sum_neg = -raw_pnl[raw_pnl<0].sum()
 			if sum_neg>0:
