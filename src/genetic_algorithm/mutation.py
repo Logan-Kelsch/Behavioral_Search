@@ -3,6 +3,7 @@
 '''
 
 import genetic_algorithm.transforms as transforms
+import genetic_algorithm.population as population
 import genetic_algorithm.evaluation as evaluation
 import genetic_algorithm.visualization as visualization
 
@@ -26,6 +27,9 @@ def branch_ntimes(
 def quarter_forest_evolution(
 	init_forest	:	np.ndarray,
 	x_raw		:	np.ndarray,
+	tree_optim	:	bool	=	True,
+	limit_const_optim	:	bool = False,	
+	const_optim_maxiter	:	int	=	10,
 	iterations	:	int	=	5
 ):
 	
@@ -39,11 +43,25 @@ def quarter_forest_evolution(
 
 	print('entering preloop')
 	iter_forest:list = init_forest
+	chld_forest:list = []
+
 
 	f_size = len(iter_forest)
 	q_size = int(np.floor(f_size/4))
 
+
 	for i in range(iterations):
+
+		if(tree_optim):
+			it = -1
+			if(limit_const_optim):
+				it = const_optim_maxiter
+			chld_forest = optimize_constants(population=chld_forest, iterations=it)
+
+		#bring offspring over to iterating forest
+		for tree in chld_forest:
+			iter_forest.append(tree)
+		chld_forest = []
 
 		p_gen = transforms.forest2features(iter_forest, x_raw)
 		p = pd.DataFrame(p_gen)
@@ -56,24 +74,21 @@ def quarter_forest_evolution(
 		img = visualization.visualize_tree(iter_forest[p_treelist[0]])
 		display(img)
 
-		#identify trees to be kept
-		while(len(p_treelist) > q_size):
-			p_treelist.pop()
+		ordered_forest, ordered_scores = population.sort_forest(iter_forest, p_treelist, p_scorelist)
+		iter_forest = ordered_forest
+		prll_scores = ordered_scores
 
-		#pop all trees not in kept treelist
-		quarter_trees = set(p_treelist)
-		crnt_forest_size = len(iter_forest)
-		for k in range(crnt_forest_size-1,-1,-1):
-			if k not in quarter_trees:
-				iter_forest.pop(k)
+		#identify trees to be kept
+		while(len(iter_forest) > q_size):
+			iter_forest.pop()
 
 		print('popped all lists, adding all children')
 		if(i<iterations-1):
 			#make 3 children for each surviving tree
 			for j in range(q_size):
 
-				for three in [0,1,2]:
-					iter_forest.append(
+				for three_offspring in [0,1,2]:
+					chld_forest.append(
 						branch_ntimes(
 							copy.deepcopy(iter_forest[j]), 
 							int(-np.ceil(np.log(random.random())))
@@ -82,3 +97,16 @@ def quarter_forest_evolution(
 
 	return iter_forest
 		
+
+def optimize_constants(
+	population	:	list,
+	iterations	:	int	=	-1
+)	->	list:
+	
+
+
+
+
+
+
+	return

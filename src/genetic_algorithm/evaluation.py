@@ -123,11 +123,10 @@ def evaluate_forest(
 	eval_score_list  = []
 	for key in scores_df.index:
 		combined_score = scores_df.loc[key, 'combined']
-		if(combined_score>0):
-			idx = int(key.split('_')[1])
-			if (idx not in feature_idx_list):
-				feature_idx_list.append(idx)
-				eval_score_list.append(combined_score)
+		idx = int(key.split('_')[1])
+		if (idx not in feature_idx_list):
+			feature_idx_list.append(idx)
+			eval_score_list.append(combined_score)
 
 	# 6) identify best signals
 	best_signals = {
