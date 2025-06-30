@@ -21,14 +21,3 @@ def sort_forest(
 	order_list	:	list
 ):
 	return [population[i] for i in order_list], [score_list[i] for i in order_list]
-
-def initialize_interdimensional(
-		
-):
-	return
-
-
-def initialize_intradimensional(
-		
-):
-	return

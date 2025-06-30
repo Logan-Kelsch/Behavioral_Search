@@ -666,6 +666,82 @@ class T_node:
 		#self.mutate_tree()
 		#calling mutate in random depricated 6/24/25
 
+	def branch_oplist(
+		self,
+		oplist	:	list
+	):
+		if(oplist):
+			this_item = oplist[-1]
+			oplist.pop()
+
+			match(abs(this_item[0])):
+
+				case 0:
+
+					#this if is true when we are managing some
+					#vstk pop or push, has no tree building
+					#significance considering we can go DF R->L to build
+					if(this_item[1]<0):
+
+						
+						#we call the next item in oplist at THIS node
+						return self.branch_oplist(oplist=oplist)
+					
+					else:
+
+						#this case means that we are assigning a 
+						#new raw feature index to _x
+						self._x = this_item[1]
+						return oplist
+
+				case 1|2|3:
+
+					self._type = this_item[0]
+					self._delta = this_item[2][0]
+					self._x = T_node()
+					return self._x.branch_oplist(oplist=oplist)
+
+				case 4:
+
+					self._type = this_item[0]
+					self._x = T_node()
+					return self._x.branch_oplist(oplist=oplist)
+
+				case 5|6:
+
+					self._type = abs(this_item[0])
+					
+					self._x = T_node()
+
+					if(this_item[1]==0):
+						self._alpha = T_node()
+						#makes the alpha branch push out first, which is proper
+						#inverse order
+						return self._x.branch_oplist(
+							oplist=self._alpha.branch_oplist(oplist=oplist)
+						)
+					else:
+						#this case is reached when alpha is a constant
+						self._alpha = this_item[2][0]
+						return self._x.branch_oplist(oplist=oplist)
+				
+				case 7:
+
+					self._type = this_item[0]
+					self._delta = this_item[2][0]
+					self._delta2= this_item[2][1]
+					self._x = T_node()
+					return self._x.branch_oplist(oplist=oplist)
+				
+				case 8:
+
+					self._type = this_item[0]
+					self._kappa = this_item[1]
+					self._x = T_node()
+					return self._x.branch_oplist(oplist=oplist)
+
+		else:
+			return []
 
 	def get_rrf(
 		self
@@ -785,10 +861,18 @@ def oplist2tstack(
 	
 	return tstack
 
+
+def oplist2tree(
+	oplist	:	list
+):
+	
+	new_tree = T_node()
+	new_tree.branch_oplist(oplist=oplist)
+
+	return new_tree
+	
+
 		
-			
-
-
 def forest2features(
 	population	:	list,
 	x_raw		:	np.ndarray
