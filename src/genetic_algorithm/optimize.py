@@ -1,6 +1,8 @@
 
+import random
 import genetic_algorithm.evaluation as evaluation
 import genetic_algorithm.transforms as transforms	
+import genetic_algorithm.mutation as mutation
 import numpy as np
 
 def optimize_constants(
@@ -14,8 +16,6 @@ def optimize_constants(
 	loop_forest = population
 
 	p_arr = transforms.forest2features(loop_forest, x_raw)
-
-	i = 0
 
 	p_scores, p_treelist, p_scorelist = evaluation.evaluate_forest(
 		p_arr, x_raw[:, 3], n_bins=300, lag_range=(2, 4)
@@ -54,14 +54,91 @@ def optimize_constants(
 	orig_idx = [i for i in range(len(loop_forest))]
 
 	#go through all mutation possibilities and append to both lists
-	pre_length = len(oplists)
-	for oi in range(pre_length):
+	orig_length = len(oplists)
+
+	for oi in range(orig_length):
 
 		curr_oplist = oplists[oi]
-		edit_oplist = oplists[oi].copy()
 
-		#iterate through oplist and make all
-		#possible random generations for each original oplist
+		#now go through all operations in the oplist to 
+		#see what can be mutated		
+		for i in range(len(curr_oplist)):
+
+			#we are looking for operations with either
+			#delta, delta2, const_alpha (flag: 1), kappa
+
+			match(curr_oplist[i][0]):
+
+				#for these cases, we are either on a leaf
+				#and I am not currently implementing raw data shifting
+				#or we are flipping the sign.
+				#both of these cases have no treadable dimensionality
+				case 0|4:
+					#go to next operation
+					continue
+
+				#for this case, we are going to shift delta
+				case 1|2|3:
+
+					edit_oplist_over = curr_oplist.copy()
+					edit_oplist_under = curr_oplist.copy()
+					under, over = mutation.mutate_constant(
+						type='delta', val=curr_oplist[i][2][0], dev=desperation[oi]
+					)
+					edit_oplist_over[i][2][0] = over
+					edit_oplist_under[i][2][0] = under
+					oplists.append(edit_oplist_under)
+					orig_idx.append(orig_idx[oi])
+
+				#for this case, we are going to check if 
+				#flag is 1 (if alpha is a constant), then shift alpha if so
+				case 5|6:
+
+					#currently, we are not going to mutate alpha,
+					#for non-redundant value generation,
+					#we would need to take in the distribution information
+					#that is generated. this is not too silly,
+					#but would take a lot of implementation,
+					#therefore this can be done at a later time/date
+					continue
+					
+
+				#for this case we are going to shift either
+				#delta or delta2 based on coin flip.
+				#tracking all paths for this manipulation would
+				#take more implementation than what it is worth
+				case 7:
+
+					which_delta = random.randint(0,1)
+
+					edit_oplist_over = curr_oplist.copy()
+					edit_oplist_under = curr_oplist.copy()
+					under, over = mutation.mutate_constant(
+						type='delta', val=curr_oplist[i][2][which_delta], dev=desperation[oi]
+					)
+					edit_oplist_over[i][2][which_delta] = over
+					edit_oplist_under[i][2][which_delta] = under
+					oplists.append(edit_oplist_under)
+					orig_idx.append(orig_idx[oi])
+
+				#for this case, we are going to shift kappa
+				case 8:
+
+					edit_oplist_over = curr_oplist.copy()
+					edit_oplist_under = curr_oplist.copy()
+					under, over = mutation.mutate_constant(
+						type='kappa', val=curr_oplist[i][2][0], dev=desperation[oi]
+					)
+					edit_oplist_over[i][2][0] = over
+					edit_oplist_under[i][2][0] = under
+					oplists.append(edit_oplist_under)
+					orig_idx.append(orig_idx[oi])
+
+	#now we have fully expanded oplists to all mutations and orig_idx to be parallel original tree indices
+	#of loop forest for where it was mutated from.
+	#we now also know that all indices of these prll lists >= orig_length are the mutations and can
+	#be made into batches, scored, argmined performance, and replaced in the loopforest with best scores added to p_bests
+
 
 	'''
 	So it looks like I can make two parallel giant lists

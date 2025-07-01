@@ -354,14 +354,14 @@ class T_node:
 
 	function numbers:
 	0- identity
-	1- max 
-	2- min
-	3- avg
-	4- neg
-	5- dif
-	6- var
-	7- rng
-	8- hkp
+	1- max (delta)
+	2- min (delta)
+	3- avg (delta)
+	4- neg ()
+	5- dif (alpha)
+	6- var (alpha)
+	7- rng (delta, delta2)
+	8- hkp (kappa)
 	'''
 	def __init__(
 		self,

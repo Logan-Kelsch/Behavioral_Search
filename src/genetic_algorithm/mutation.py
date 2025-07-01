@@ -9,6 +9,7 @@ import genetic_algorithm.visualization as visualization
 
 import random
 import copy
+from typing import Literal
 import numpy as np
 import pandas as pd
 from IPython.display import Image, display
@@ -110,3 +111,45 @@ def optimize_constants(
 
 
 	return
+
+def mutate_constant(
+	type	:	Literal['delta', 'kappa','U01']	=	'U01',
+	val		:	float	=	0,
+	dev		:	float	=	0
+):
+	'''
+	This function is going to take some given constant's value
+	VAL
+	and return a new value picked from a random uniform range of
+	DEV standard deviations according to TYPE distribution
+	'''
+
+	dev_dir = dev/2
+	u_under, u_over = np.random.rand(), np.random.rand()
+
+	match(type):
+
+		case 'kappa':
+
+			delta_under = -np.log(u_under * (1-np.exp(-dev_dir)) + np.exp(-dev_dir))
+			delta_over	= -np.log(u_over  * (1-np.exp(-dev_dir)) + np.exp(-dev_dir))
+
+			under = max(0, val-delta_under)
+			over  = val+delta_over
+
+			return under, over
+		
+		case 'delta':
+
+			delta_under = -np.log(u_under * (1-np.exp(-dev_dir)) + np.exp(-dev_dir))
+			delta_over	= -np.log(u_over  * (1-np.exp(-dev_dir)) + np.exp(-dev_dir))
+
+			under = max(0, val-delta_under)
+			over  = val+delta_over
+
+			return under, over
+		
+		case 'alpha':
+			raise NotImplementedError(f"Alpha has not been implemented into mutate_constants.")
+		
+	#function is done here
