@@ -44,11 +44,49 @@ def optimize_constants(
 	desperation = np.asarray([(1/(ns**2)) for ns in norm_satiation])
 
 	#get oplists
-	#get mutation sets
+	oplists = [transforms.get_oplist(tree) for tree in loop_forest]
+
+	#a parallel list of indices that follows 
+	#where the new trees are generating from
+	#to ensure proper overfitting avoidance and
+	#ease of tracking optimization
+	#this is initialized as an index list parallel to the original forest
+	orig_idx = [i for i in range(len(loop_forest))]
+
+	#go through all mutation possibilities and append to both lists
+	pre_length = len(oplists)
+	for oi in range(pre_length):
+
+		curr_oplist = oplists[oi]
+		edit_oplist = oplists[oi].copy()
+
+		#iterate through oplist and make all
+		#possible random generations for each original oplist
+
+	'''
+	So it looks like I can make two parallel giant lists
+	of mutated oplists prllto original indices
+
+	then I can break this into batches
+	then I can turn the oplists batches into forests
+
+	then I can evaluate all forests,
+	replace all loop_forest trees with best tree for each orig_idx
+
+	then I can evaluate the finalized forest
+	and append new scores to p_bests
+	'''
+
 	#via trees from oplists
+	
 	#run sets and append scores to idx
+	
 	#condense best scoree point to new best
+	
 	#evaluate loop_forest
+	
 	#update sthresh
+	
 	#update norm scores
+	
 	#age satiation
