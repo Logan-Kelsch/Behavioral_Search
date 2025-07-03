@@ -1,5 +1,6 @@
 from functools import lru_cache
 from typing import List, Any, Tuple
+import numpy as np
 
 
 
@@ -55,3 +56,15 @@ def shortest_common_supersequence(
 # scs, idxs = shortest_common_supersequence(seqs)
 # print("SCS:", scs)
 # print("Indices:", idxs)
+
+def quickfix_score_to_loss(
+    scores  :   list
+)   ->  list:
+    
+    losses = []
+
+    for score in scores:
+
+        losses.append( np.exp( 1 - np.exp(score) ) )
+
+    return losses

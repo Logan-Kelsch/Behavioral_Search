@@ -12,7 +12,7 @@ from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
 from typing import Tuple, List, Any
 
-def evaluate_forest(
+def evaluate_forest_newer(
 	forest: np.ndarray,
 	close_prices: np.ndarray,
 	lag_range: Tuple[int, int] = (1,5),
@@ -169,11 +169,12 @@ def evaluate_forest(
 	return scores_df, feature_idx_list, combined_list
 
 
-def evaluate_forest_old(
+def evaluate_forest(
 	forest: np.ndarray,
 	close_prices: np.ndarray,
 	lag_range: Tuple[int, int] = (2, 5),
-	n_bins: int = 50
+	n_bins: int = 50,
+	plot_eval	:	bool	=	False
 ) -> Tuple[pd.DataFrame, List[int], List]:
 	"""
 	Plot cumulative P&L over time for top signals (with best lagged profit),
@@ -199,6 +200,8 @@ def evaluate_forest_old(
 
 	# 3) prepare features
 	n_samples, n_trees = forest.shape
+
+	#print(f'in eval, n_trees:{n_trees}')
 	feature_names = [f"feat_{i}" for i in range(n_trees)]
 	df_feats = pd.DataFrame(forest, columns=feature_names)
 
@@ -206,11 +209,14 @@ def evaluate_forest_old(
 	raw_pnl_dict = {}
 	scores = {}
 
+	#print(f'num feature names in eval: {len(feature_names)}')
+
 	# 4) compute signals, best-lag profit, and metrics
 	for col in feature_names:
 		feat = df_feats[col]
-		if feat.isna().all() or (feat.fillna(0) == 0).all():
-			continue
+		#if feat.isna().all() or (feat.fillna(0) == 0).all():
+		#	continue
+		feat.fillna(0)
 
 		signals = {
 			'>mean': (feat > feat.mean()).astype(int),
@@ -219,9 +225,11 @@ def evaluate_forest_old(
 			'<0':    (feat < 0).astype(int),
 		}
 
+		#print(f'num signals inloop in eval: {len(signals)}')
+
 		for label, sig in signals.items():
-			if sig.nunique() <= 1:
-				continue
+			#if sig.nunique() <= 1:
+			#	continue
 
 			# find best lag for profit within lag_range
 			best_profit = None
@@ -251,20 +259,17 @@ def evaluate_forest_old(
 			lr = LinearRegression().fit(time_idx, cum_pnl.values)
 			consistency = r2_score(cum_pnl.values, lr.predict(time_idx))
 
-			#infrequency
-			infrequency = np.sqrt(1.0 - exec_sig.sum()/n_samples)
-
 			#lnpl
 			sum_pos = raw_pnl[raw_pnl>0].sum()
-			sum_neg = -raw_pnl[raw_pnl<0].sum()
+			sum_neg = -raw_pnl[raw_pnl<=0].sum()
 			if sum_neg>0:
-				ratio = sum_pos/sum_neg if sum_pos>0 else 1.0
+				ratio = sum_pos/sum_neg if sum_pos>0 else 0.1
 			else:
 				ratio = 0.1
-			lnpl = np.log(ratio) if ratio>0 else -np.inf
+			lnpl = min(ratio,2)
 
 			# combined
-			combined = total_profit * consistency * infrequency * ic * lnpl
+			combined = total_profit * consistency * ic * lnpl
 			neg_count = sum([total_profit<0, consistency<0, lnpl<0])
 			if neg_count>=2:
 				combined = -abs(combined)
@@ -273,14 +278,13 @@ def evaluate_forest_old(
 				'ic': ic,
 				'profit': total_profit,
 				'r2': consistency,
-				'sqrtinfq': infrequency,
 				'lnpl': lnpl,
 				'combined': combined
 			}
 
 	# 5) build DataFrames
 	pnls = pd.concat(cum_pnl_dict, axis=1)
-	scores_df = pd.DataFrame(scores).T.sort_values('combined', ascending=False)
+	scores_df = pd.DataFrame(scores).T#.sort_values('combined', ascending=False)
 
 	# unique feature index list
 	feature_idx_list = []
@@ -290,7 +294,10 @@ def evaluate_forest_old(
 		idx = int(key.split('_')[1])
 		if (idx not in feature_idx_list):
 			feature_idx_list.append(idx)
-			eval_score_list.append(combined_score)
+			if(np.isnan(combined_score)):
+				eval_score_list.append(0)
+			else:
+				eval_score_list.append(combined_score)
 
 	# 6) identify best signals
 	best_signals = {
@@ -300,35 +307,36 @@ def evaluate_forest_old(
 		'Best Combined': scores_df['combined'].idxmax(),
 	}
 
-	# 7) plot cumulative PnL
-	plt.figure(figsize=(12,6))
-	plt.plot(pnls.index, market_cum, color='black', label='Market')
-	for title, sig_key in best_signals.items():
-		plt.plot(pnls.index, pnls[sig_key], label=f"{title} ({sig_key})")
-	plt.legend()
-	plt.xlabel("Time")
-	plt.ylabel("Cumulative P&L")
-	plt.title("Cumulative P&L: Market vs. Top Signals")
-	plt.tight_layout()
-	plt.show()
+	if(plot_eval):
+		# 7) plot cumulative PnL
+		plt.figure(figsize=(12,6))
+		plt.plot(pnls.index, market_cum, color='black', label='Market')
+		for title, sig_key in best_signals.items():
+			plt.plot(pnls.index, pnls[sig_key], label=f"{title} ({sig_key})")
+		plt.legend()
+		plt.xlabel("Time")
+		plt.ylabel("Cumulative P&L")
+		plt.title("Cumulative P&L: Market vs. Top Signals")
+		plt.tight_layout()
+		plt.show()
 
-	# 8) distribution with zero-centered bins
-	all_top = np.concatenate([raw_pnl_dict[k].values for k in best_signals.values()])
-	M = np.max(np.abs(all_top))
-	bins = np.linspace(-M, M, n_bins+1)
+		# 8) distribution with zero-centered bins
+		all_top = np.concatenate([raw_pnl_dict[k].values for k in best_signals.values()])
+		M = np.max(np.abs(all_top))
+		bins = np.linspace(-M, M, n_bins+1)
 
-	plt.figure(figsize=(10,6))
-	for title, sig_key in best_signals.items():
-		data = raw_pnl_dict[sig_key].dropna()
-		plt.hist(data, bins=bins, density=True, histtype='step', label=title)
-	plt.axvline(0, color='black', linewidth=1)
-	plt.legend()
-	plt.xlim((-0.01,0.01))
-	plt.xlabel("PnL per period")
-	plt.ylabel("Density")
-	plt.title("Distribution of PnL for Top Signals (Zero-Centered)")
-	plt.tight_layout()
-	plt.show()
+		plt.figure(figsize=(10,6))
+		for title, sig_key in best_signals.items():
+			data = raw_pnl_dict[sig_key].dropna()
+			plt.hist(data, bins=bins, density=True, histtype='step', label=title)
+		plt.axvline(0, color='black', linewidth=1)
+		plt.legend()
+		plt.xlim((-0.01,0.01))
+		plt.xlabel("PnL per period")
+		plt.ylabel("Density")
+		plt.title("Distribution of PnL for Top Signals (Zero-Centered)")
+		plt.tight_layout()
+		plt.show()
 
 	return scores_df, feature_idx_list, eval_score_list
 
@@ -336,6 +344,7 @@ def evaluate_forest_old(
 
 
 def get_best_forest(
+	forfeat_batches	:	list,
 	forest_batches	:	list,
 	prll_idx_batches:	list,
 	close_prices	:	np.ndarray,
@@ -345,7 +354,9 @@ def get_best_forest(
 	
 	scores_batches = []
 
-	for forest in forest_batches:
+	print(f'forfeat forest type: {type(forfeat_batches[0])}')
+
+	for forest in forfeat_batches:
 		_, __, local_scores = evaluate_forest(forest,close_prices,lag_range,n_bins)
 		scores_batches.append(local_scores)
 

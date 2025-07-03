@@ -28,22 +28,30 @@ def oplist2forests(
 	batch_size	:	int
 ):
 	
-	tot_len = len(oplists)
 	n_trees = len(oplists)
-	n_batches = np.ceil(tot_len/batch_size)
+	n_batches = int(np.ceil(n_trees/batch_size))
+
+
+	print(f'n_trees:{n_trees}\nn_batches:{n_batches}')
 	
 
 	forest_batches	= [[] for _ in range(n_batches)]
 	prll_idx_batches= [[] for _ in range(n_batches)]
 
+	add_n = n_trees
+
 	for b in range(n_batches):
 
-		for i in range(n_trees):
+		for i in range(int(min(batch_size,add_n))):
+
+			#print(f'oplist to tree on: {int((b)*batch_size)+i}')
 
 			#b+1 skips all already evaluated trees
-			new_tree = oplist2tree(oplists[int((b)*n_trees)+i])
+			new_tree = oplist2tree(oplists[int((b)*batch_size)+i])
 			forest_batches[b].append(new_tree)
 
-			prll_idx_batches[b].append(prll_idx[int((b)*n_trees)+i])
+			prll_idx_batches[b].append(prll_idx[int((b)*batch_size)+i])
+
+		add_n -= batch_size
 
 	return forest_batches, prll_idx_batches

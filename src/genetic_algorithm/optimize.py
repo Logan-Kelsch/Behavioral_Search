@@ -3,6 +3,7 @@ import random
 import genetic_algorithm.evaluation as evaluation
 import genetic_algorithm.transforms as transforms	
 import genetic_algorithm.population as poppy
+import genetic_algorithm.utility as utility
 import genetic_algorithm.mutation as mutation
 import numpy as np
 
@@ -22,8 +23,11 @@ def optimize_constants(
 		p_arr, x_raw[:, 3], n_bins=300, lag_range=(2, 4)
 	)
 
-	print(f'forest size:{len(loop_forest)}')
-	print(f'p_scorelist length:{len(p_scorelist)}')
+	print(p_scorelist)
+
+	p_scorelist = utility.quickfix_score_to_loss(p_scorelist)
+
+	print(p_scorelist)
 
 	#initialize score comparisons to track bests
 
@@ -33,7 +37,7 @@ def optimize_constants(
 		p_bests_iter[s].append(score)
 
 	#takes the score marking the top sthersh
-	sthresh = sorted(p_bests)[int(np.floor(len(p_bests)*sthresh_q))]
+	sthresh = sorted(p_bests, reverse=True)[int(np.floor(len(p_bests)*sthresh_q))]
 
 	norm_scores = np.asarray([sthresh/score for score in p_scorelist], dtype=np.float32)
 
@@ -124,7 +128,7 @@ def optimize_constants(
 
 					#for this case, we are going to check if 
 					#flag is 1 (if alpha is a constant), then shift alpha if so
-					case 5|6:
+					case -5|-6:
 
 						#currently, we are not going to mutate alpha,
 						#for non-redundant value generation,
@@ -180,7 +184,18 @@ def optimize_constants(
 			batch_size=orig_length
 		)
 
+		print(len(forest_batches[1]))
+		#print(transforms.get_oplist(forest_batches[1][0]))
+
+		forfeat_batches = []
+
+		for batch in range(len(forest_batches)):
+			forfeat_batches.append(transforms.forest2features(forest_batches[batch], x_raw))
+
+		print(f'opt-- forfeat[0] shape: {forfeat_batches[1].shape}')
+
 		best_forest, best_scores = evaluation.get_best_forest(
+			forfeat_batches=forfeat_batches,
 			forest_batches=forest_batches,
 			prll_idx_batches=prll_idx_batches,
 			close_prices=x_raw[:, 3],
@@ -188,16 +203,25 @@ def optimize_constants(
 			n_bins=300
 		)
 
+		print(best_scores)
+
+		best_scores = utility.quickfix_score_to_loss(best_scores)
+
+		print(best_scores)
+
 		for i in range(len(p_bests_iter)):
 			p_bests_iter[i].append(best_scores[i])
 
 		for i in range(len(p_bests)):
 			p_bests[i] = min(p_bests_iter[i])
 
-		loop_forest = best_forest
+		loop_forest = best_forest.copy()
+
 
 		#takes the score marking the top sthersh
-		sthresh = sorted(p_bests)[int(np.floor(len(p_bests)*sthresh_q))]
+		sthresh = sorted(best_scores, reverse=True)[int(np.floor(len(best_scores)*sthresh_q))]
+
+		
 
 		norm_scores = np.asarray([sthresh/score for score in best_scores], dtype=np.float32)
 
@@ -226,7 +250,7 @@ def optimize_constants(
 	for j in range(len(p_bests_iter[0])):
 		time_best = p_bests_iter[0][j]
 		for i in range(1,len(p_bests_iter)):
-			if(p_bests_iter[i][j]>time_best):
+			if(p_bests_iter[i][j]<time_best):
 				time_best = p_bests_iter[i][j]
 		best_scores_over_time.append(time_best)
 
