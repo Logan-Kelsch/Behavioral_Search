@@ -515,12 +515,12 @@ class T_node:
 				case 1|2|3|7:
 
 					#using inverse transformation sampling and scaling by 26 for relevance according to 15m candles, may make this dynamic
-					self._delta = int(np.clip(np.ceil(-26 * np.log(np.random.rand())), 1, 239))
+					self._delta = int(np.clip(np.ceil(-26 * np.log(np.random.rand())), 2, 239))
 
 					if(self._type==7):
 
 						#doing the same exact thing as above, but for the other delta for ranging function
-						self._delta2 = int(np.clip(np.ceil(-26 * np.log(np.random.rand())), 1, 239))
+						self._delta2 = int(np.clip(np.ceil(-26 * np.log(np.random.rand())), 2, 239))
 
 				case 5|6:
 
@@ -1019,6 +1019,9 @@ def forest2features(
 					#view of xptr for just those columns
 					block = xptr[:, cols]
 
+					#print('block shape:', block.shape)
+					#print('delta',delta)
+
 					#repeat first row (delta-1) times for padding
 					#this is going to have shape (delta-1) by k
 					pad = np.repeat(block[0:1, :], delta-1, axis=0)
@@ -1149,6 +1152,7 @@ def forest2features(
 					
 					if T > delta:
 
+						
 						#compute the avg for full delta window for remaining entries
 						out[delta:] = (csum[delta:] - csum[:-delta]) / delta
 

@@ -23,7 +23,7 @@ def optimize_constants(
 		p_arr, x_raw[:, 3], n_bins=300, lag_range=(2, 4)
 	)
 
-	print(p_scorelist)
+	#print(p_scorelist)
 
 	p_scorelist = utility.quickfix_score_to_loss(p_scorelist)
 
@@ -41,7 +41,7 @@ def optimize_constants(
 
 	norm_scores = np.asarray([sthresh/score for score in p_scorelist], dtype=np.float32)
 
-	print(f'shape norm scores:{norm_scores.shape}')
+	#print(f'shape norm scores:{norm_scores.shape}')
 
 	#for half life, = 0.693147
 	kappa:np.float32 = -np.log(0.5) 
@@ -51,15 +51,15 @@ def optimize_constants(
 
 	satiation = np.full((norm_scores.shape[0]), fill_value=init_satiation)
 
-	print(f'shape satiation:{satiation.shape}')
+	#print(f'shape satiation:{satiation.shape}')
 
 	norm_satiation = np.asarray([init_satiation/s for s in satiation], dtype=np.float32)
 
-	print(f'shape normsatiation:{norm_satiation.shape}')
+	#print(f'shape normsatiation:{norm_satiation.shape}')
 
 	desperation = np.asarray([(1/(ns**2)) for ns in norm_satiation])
 
-	print(f'shape desperation:{desperation.shape}')
+	#print(f'shape desperation:{desperation.shape}')
 
 	will_die = np.full((len(p_scorelist)), fill_value=1, dtype=np.int8)
 	n_to_die = will_die.sum()
@@ -184,7 +184,7 @@ def optimize_constants(
 			batch_size=orig_length
 		)
 
-		print(len(forest_batches[1]))
+		#print(len(forest_batches[1]))
 		#print(transforms.get_oplist(forest_batches[1][0]))
 
 		forfeat_batches = []
@@ -192,7 +192,7 @@ def optimize_constants(
 		for batch in range(len(forest_batches)):
 			forfeat_batches.append(transforms.forest2features(forest_batches[batch], x_raw))
 
-		print(f'opt-- forfeat[0] shape: {forfeat_batches[1].shape}')
+		#print(f'opt-- forfeat[0] shape: {forfeat_batches[1].shape}')
 
 		best_forest, best_scores = evaluation.get_best_forest(
 			forfeat_batches=forfeat_batches,
@@ -203,7 +203,7 @@ def optimize_constants(
 			n_bins=300
 		)
 
-		print(best_scores)
+		#print(best_scores)
 
 		best_scores = utility.quickfix_score_to_loss(best_scores)
 
@@ -234,9 +234,9 @@ def optimize_constants(
 		death_mask = norm_satiation < 1
 		will_die = death_mask.astype(int)
 
-		stable_time = (stable_time*int(will_die.sum()==n_to_die))+int(will_die.sum()==n_to_die) 
+		stable_time = (stable_time*int(bool(will_die.sum()==n_to_die)))+int(bool(will_die.sum()==n_to_die)) 
 
-		still_optimizing = bool(stable_time<2)
+		still_optimizing = bool(stable_time>2)
 
 		n_to_die = will_die.sum()
 
