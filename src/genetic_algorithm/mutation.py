@@ -11,6 +11,7 @@ import random
 import copy
 from typing import Literal
 import numpy as np
+import math
 import pandas as pd
 from IPython.display import Image, display
 
@@ -124,28 +125,37 @@ def mutate_constant(
 	DEV standard deviations according to TYPE distribution
 	'''
 
-	dev_dir = dev/2
-	u_under, u_over = np.random.rand(), np.random.rand()
+
+	pin_der = math.erf(dev / math.sqrt(2)) / 2
+
+	u_under, u_over = random.uniform(0, pin_der), random.uniform(0, pin_der)
+
+	area = np.exp(-val)
+
+	area_under= max(area - u_under,0.0)
+	area_over = min(area + u_over, 1.0)
+
+
 
 	match(type):
 
 		case 'kappa':
 
-			delta_under = -np.log(u_under * (1-np.exp(-dev_dir)) + np.exp(-dev_dir))
-			delta_over	= -np.log(u_over  * (1-np.exp(-dev_dir)) + np.exp(-dev_dir))
+			delta_under = -np.log(area_under) if area_under > 0 else float("-inf")
+			delta_over	= -np.log(area_over) if area_over > 0 else float("-inf")
 
-			under = max(0, val-delta_under)
-			over  = val+delta_over
+			under = int(np.clip(val-delta_under, 1, 239))
+			over  = int(np.clip(val+delta_over, 1, 239))
 
 			return under, over
 		
 		case 'delta':
 
-			delta_under = -np.log(u_under * (1-np.exp(-dev_dir)) + np.exp(-dev_dir))
-			delta_over	= -np.log(u_over  * (1-np.exp(-dev_dir)) + np.exp(-dev_dir))
+			delta_under = -np.log(area_under) if area_under > 0 else float("-inf")
+			delta_over	= -np.log(area_over) if area_over > 0 else float("-inf")
 
-			under = max(0, val-delta_under)
-			over  = val+delta_over
+			under = round(np.clip(val-delta_under, 1, 239))
+			over  = round(np.clip(val+delta_over, 1, 239))
 
 			return under, over
 		

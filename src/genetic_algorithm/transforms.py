@@ -62,7 +62,7 @@ def t_MAX(
 	- this is the most optimal version
 	'''
 	#a universal general maximum to data development size
-	assert 0 < Delta < 240, "t_MAX: Delta must be below 240."
+	assert 0 < Delta < 240, f"t_MAX: Delta must be in (0, 240). Got {Delta}"
 
 	return bn.move_max(X, window=Delta, axis=0, min_count=1)
 
@@ -81,7 +81,7 @@ def t_MIN(
 	- this is the most optimal version
 	'''
 	#a universal general maximum to data development size
-	assert 0 < Delta < 240, "t_MAX: Delta must be below 240."
+	assert 0 < Delta < 240, f"t_MAX: Delta must be in (0, 240). Got {Delta}"
 
 	return bn.move_min(X, window=Delta, axis=0, min_count=1)
 
@@ -100,7 +100,7 @@ def t_AVG(
 	- this is the most optimal version
 	'''
 	#a universal general maximum to data development size
-	assert 0 < Delta < 240, "t_MAX: Delta must be below 240."
+	assert 0 < Delta < 240, f"t_MAX: Delta must be in (0, 240). Got {Delta}"
 
 	return bn.move_mean(X, window=Delta, axis=0, min_count=1)
 
@@ -922,7 +922,7 @@ def forest2features(
 	t_supseq, i_supseq = utility.shortest_common_supersequence(seqs=tstacks)
 
 	#create hotloop for operating on oplist patterns
-	for op, (t_ss, i_ss) in enumerate(zip(t_supseq, i_supseq), 1):
+	for t_ss, i_ss in zip(t_supseq, i_supseq):
 
 		#NOTE beginning vstk pop and push interaction section NOTE#
 		#check always to see if any vstk operations need completed first!
@@ -989,6 +989,8 @@ def forest2features(
 
 			#this case is entered for the function max(x, delta)
 			case 1:
+				
+				pre = np.all(xptr==0, axis=0)
 
 				#this is using in place rolling max with per-column window sizes to 
 				#accomodate to inequal delta values for different sources
@@ -999,179 +1001,76 @@ def forest2features(
 
 				deltas = [oplists[i][0][2][0] for i in i_ss]
 				
-				#turn delta in to numpy array
-				deltas = np.asarray(deltas, dtype=int)
+				for c in range(len(op_idx)):
+					xptr[:, op_idx[c]] = t_MAX(xptr[:, op_idx[c]], deltas[c])
 
-				T = xptr.shape[0]
+				post = np.all(xptr==0, axis=0)
 
-				#we can do matching deltas at one time, 
-				#so we will see if any match to speed it up
-				unique_deltas = np.unique(deltas)
-
-				#loop over each delta value
-				for delta in unique_deltas:
-
-					#go and get columns with the current delta value
-					cols = op_idx[deltas == delta]
-
-					#print(cols.shape)
-
-					#view of xptr for just those columns
-					block = xptr[:, cols]
-
-					#print('block shape:', block.shape)
-					#print('delta',delta)
-
-					#repeat first row (delta-1) times for padding
-					#this is going to have shape (delta-1) by k
-					pad = np.repeat(block[0:1, :], delta-1, axis=0)
-
-					#vstack to form the padded array
-					#this now has shape (T+delta-1) by k
-					ap = np.vstack((pad, block))
-
-					#look at the given window
-					win = sliding_window_view(ap, window_shape=delta, axis=0)
-
-					#allocate some memory for the outputs
-					#out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
-
-					#compute the max over each window and put it into the output buffer
-					#np.maximum.reduce(win, axis=1, out=out_buf)
-
-					out_buf = win.max(axis=2)
-
-					#print(win.shape)
-
-					#write the results back and go again through the loop
-					xptr[:, cols] = out_buf
-
-					#had a lot of crashing errors in my old code, 
-					#hopefully excessively calling delete will keep the code running fine
-					del cols, block, pad, ap, win, out_buf
-
-				#delete all long term holders once these operations are done
-				del deltas, unique_deltas
-
+				if(np.array_equal(pre, post)):
+					print('Success in case 1')
+				else:
+					print('Failure in case  1')
 
 			#this case is entered for the function min(x, delta)
 			case 2:
 				
+				pre = np.all(xptr==0, axis=0)
+
 				#this is using in place rolling min with per-column window sizes to 
 				#accomodate to inequal delta values for different sources
 
 				#go get the deltas and turn them into numpy array
 				#deltas are located in the first slot of parameter section of oplist
 				deltas = [oplists[i][0][2][0] for i in i_ss]
-				
-				#turn delta in to numpy array
-				deltas = np.asarray(deltas, dtype=int)
 
-				T = xptr.shape[0]
+				for c in range(len(op_idx)):
+					xptr[:, op_idx[c]] = t_MIN(xptr[:, op_idx[c]], deltas[c])
 
-				#we can do matching deltas at one time, 
-				#so we will see if any match to speed it up
-				unique_deltas = np.unique(deltas)
+				post = np.all(xptr==0, axis=0)
 
-				#loop over each delta value
-				for delta in unique_deltas:
-
-					#go and get columns with the current delta value
-					cols = op_idx[deltas==delta]
-
-					#view of xptr for just those columns
-					block = xptr[:, cols]
-
-					#repeat first row (delta-1) times for padding
-					#this is going to have shape (delta-1) by k
-					pad = np.repeat(block[0:1, :], delta-1, axis=0)
-
-					#vstack to form the padded array
-					#this now has shape (T+delta-1) by k
-					ap = np.vstack((pad, block))
-
-					#look at the given window
-					win = sliding_window_view(ap, window_shape=delta, axis=0)
-
-					#allocate some memory for the outputs
-					#out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
-
-					#compute the min over each window and put it into the output buffer
-					#np.minimum.reduce(win, axis=1, out=out_buf)
-
-					out_buf = win.min(axis=2)
-
-					#write the results back and go again through the loop
-					xptr[:, cols] = out_buf
-
-					#had a lot of crashing errors in my old code, 
-					#hopefully excessively calling delete will keep the code running fine
-					del cols, block, pad, ap, win, out_buf
-
-				#delete all long term holders once these operations are done
-				del deltas, unique_deltas
+				if(np.array_equal(pre, post)):
+					print('Success in case 2')
+				else:
+					print('Failure in case  2')
 
 			#this case is entered for the function avg(x, delta)
 			case 3:
+
+				pre = np.all(xptr==0, axis=0)
 
 				#go get the deltas and turn them into numpy array
 				#deltas are located in the first slot of parameter section of oplist
 				deltas = [oplists[i][0][2][0] for i in i_ss]
 
-				#going to convert delta values into a numpy array to ensure numpy smoothness
-				deltas = np.asarray(deltas, dtype=int)
+				#print(f"transs: {[oplists[i][0][0] for i in i_ss]}")
+				print(f"deltas: {deltas}")
+
+				for c in range(len(i_ss)):
+					xptr[:, op_idx[c]] = t_AVG(xptr[:, op_idx[c]], deltas[c])
+
+				post = np.all(xptr==0, axis=0)
+
+				if(np.array_equal(pre, post)):
+					print('Success in case 3')
+				else:
+					print('Failure in case  3')
 				
-				T = xptr.shape[0]
-
-				#get each distinct delta value to run similar values in parallel
-				unique_deltas = np.unique(deltas)
-				
-				#here we are going to precompute counts (1, 2, .., min(delta, T)) for each delta
-				counts = {
-					delta: np.arange(1, min(delta, T) + 1, dtype=xptr.dtype)
-					for delta in unique_deltas
-				}
-
-				#loop over each column and its window size
-				for col, delta in zip(op_idx, deltas):
-					
-					#go get the colums that can be done in parallel
-					x = xptr[:, col]
-					
-					#sum up all values with cumsum this will make the computation way way easier
-					csum = x.cumsum()
-					
-					#allocate some memory for output
-					out = np.empty(T, dtype=xptr.dtype)
-
-					#number of growing window steps where we have not reached sample delta
-					m = counts[delta].size
-					
-					#compute avg for partial windows if needed
-					out[:m] = csum[:m] / counts[delta]
-					
-					if T > delta:
-
-						
-						#compute the avg for full delta window for remaining entries
-						out[delta:] = (csum[delta:] - csum[:-delta]) / delta
-
-					#write the results back into the array
-					xptr[:, col] = out
-					
-					#delete the temp variables for free memory immediately
-					#hoping this actually helps this run indef.
-					del x, csum, out
-
-				#clean up the helper arrays for this function now that the operations are complete
-				del deltas, unique_deltas, counts
 
 			#this case is entered for the function neg(x)
 			case 4:
 				
+				pre = np.all(xptr==0, axis=0)
+
 				#really almost nothing is needed here
 				#multiply the columns by -1
 				xptr[:, op_idx] *= -1
+
+				post = np.all(xptr==0, axis=0)
+
+				if(np.array_equal(pre, post)):
+					print('Success in case 4')
+				else:
+					print('Failure in case  4')
 
 			#this case is entered for the function dif(x, alpha)
 			case 5:
@@ -1187,6 +1086,8 @@ def forest2features(
 				#num rows and columns to operate on 
 				T = xptr.shape[0]
 				k = op_idx.size
+
+				#pre = np.all(xptr==0, axis=0)
 
 				#first we have to build x (in the function definition of "x - alpha")
 				#we will do this by stacking vstk[i][-1] for each i in op_idx
@@ -1214,15 +1115,27 @@ def forest2features(
 
 				#now here is the actual difference operation
 				#single c loop
-				np.subtract(x, xptr[:, op_idx], out=xptr[:, op_idx])
+				#np.subtract(x, xptr[:, op_idx], out=xptr[:, op_idx])
+
+				for i, opidx in enumerate(fill_cols):
+					xptr[:, opidx] = vstk[opidx][-1] #- xptr[:, opidx]
 
 				#this entire 2d array is no longer needed and the vstk value will be popped in the
 				#subsequent operation in oplist of those operation stacks
 				del x
 
+				#post = np.all(xptr==0, axis=0)
+
+				#if(np.array_equal(pre, post)):
+				#	print('Success in case 5')
+				#else:
+				#	print('Failure in case  5')
+
 			#this case is entered for the function var(x, alpha)
 			case 6:
 				
+				#pre = np.all(xptr==0, axis=0)
+
 				#first we need to use opidx to find the arrays in xptr that need
 				#filled in (fully with the provided constant values)
 				missing = [oplists[i][0][1] for i in op_idx]
@@ -1264,20 +1177,32 @@ def forest2features(
 
 				#now here is the actual difference operation
 				#single c loop
-				np.subtract(x, xptr[:, op_idx], out=xptr[:, op_idx])
+				#np.subtract(x, xptr[:, op_idx], out=xptr[:, op_idx])
+
+				for i, opidx in enumerate(fill_cols):
+					xptr[:, opidx] = vstk[opidx][-1] #- xptr[:, opidx]
 
 				#the only difference is here we are squaring the result
 				#this is a loop in C and also in place
-				xptr[:, op_idx] **= 2
+				#xptr[:, op_idx] **= 2
 
 				#this entire 2d array is no longer needed and the vstk value will be popped in the
 				#subsequent operation in oplist of those operation stacks
 				del x
 
+				#post = np.all(xptr==0, axis=0)
+
+				#if(np.array_equal(pre, post)):
+				#	print('Success in case 6')
+				#else:
+				#	print('Failure in case  6')
+
 			#this case is entered for the function rng(x, delta, delta2)
 			case 7:
 
 				#NOTE begin creation of max matrix NOTE#
+
+				post = np.all(xptr==0, axis=0)
 
 				#this is using in place rolling max with per-column window sizes to 
 				#accomodate to inequal delta values for different sources
@@ -1287,11 +1212,16 @@ def forest2features(
 				deltas = [oplists[i][0][2][1] for i in i_ss]
 				
 				#turn delta in to numpy array
-				deltas = np.asarray(deltas, dtype=int)
+				#deltas = np.asarray(deltas, dtype=int)
 
 				T = xptr.shape[0]
 
-				#we can do matching deltas at one time, 
+				x_max = np.empty_like(xptr)
+
+				for c in range(len(op_idx)):
+					x_max[:, op_idx[c]] = t_MAX(xptr[:, op_idx[c]], deltas[c])
+
+				'''#we can do matching deltas at one time, 
 				#so we will see if any match to speed it up
 				unique_deltas = np.unique(deltas)
 
@@ -1333,7 +1263,7 @@ def forest2features(
 					del cols, block, pad, ap, win, out_buf
 
 				#delete all long term holders once these operations are done
-				del deltas, unique_deltas
+				del deltas, unique_deltas'''
 
 				#NOTE end creation of max matrix NOTE#
 
@@ -1346,7 +1276,12 @@ def forest2features(
 				#deltas are located in the first slot of parameter section of oplist
 				deltas = [oplists[i][0][2][0] for i in i_ss]
 				
-				#turn delta in to numpy array
+				x_min = np.empty_like(xptr)
+
+				for c in range(len(op_idx)):
+					x_min[:, op_idx[c]] = t_MIN(xptr[:, op_idx[c]], deltas[c])
+
+				'''#turn delta in to numpy array
 				deltas = np.asarray(deltas, dtype=int)
 
 				T = xptr.shape[0]
@@ -1393,7 +1328,7 @@ def forest2features(
 					del cols, block, pad, ap, win, out_buf
 
 				#delete all long term holders once these operations are done
-				del deltas, unique_deltas
+				del deltas, unique_deltas'''
 
 				#NOTE end creation of min matrix NOTE#
 
@@ -1434,6 +1369,13 @@ def forest2features(
 				#although only drawback is it will be bias to excitation on the positive value end
 				#of whatever is being analyzed
 				xptr[:, op_idx] -= 0.5
+
+				post = np.all(xptr==0, axis=0)
+
+				if(np.array_equal(pre, post)):
+					print('Success in case 7')
+				else:
+					print('Failure in case  7')
 
 			#this case is entered for the function hkp(x, kappa)
 			case 8:

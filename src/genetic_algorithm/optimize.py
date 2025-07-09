@@ -5,7 +5,9 @@ import genetic_algorithm.transforms as transforms
 import genetic_algorithm.population as poppy
 import genetic_algorithm.utility as utility
 import genetic_algorithm.mutation as mutation
+import genetic_algorithm.visualization as visualization
 import numpy as np
+import pandas as pd
 
 def optimize_constants(
 	population  :   list,
@@ -65,7 +67,6 @@ def optimize_constants(
 	n_to_die = will_die.sum()
 
 	stable_time = 0
-	stable_time = (stable_time*int(will_die.sum()==n_to_die))+int(will_die.sum()==n_to_die) 
 
 	still_optimizing = bool(stable_time<2)
 
@@ -192,6 +193,9 @@ def optimize_constants(
 		for batch in range(len(forest_batches)):
 			forfeat_batches.append(transforms.forest2features(forest_batches[batch], x_raw))
 
+		x_viz = pd.DataFrame(forfeat_batches[0])
+		visualization.visualize_all_distributions(x=x_viz)
+
 		#print(f'opt-- forfeat[0] shape: {forfeat_batches[1].shape}')
 
 		best_forest, best_scores = evaluation.get_best_forest(
@@ -219,9 +223,7 @@ def optimize_constants(
 
 
 		#takes the score marking the top sthersh
-		sthresh = sorted(best_scores, reverse=True)[int(np.floor(len(best_scores)*sthresh_q))]
-
-		
+		#sthresh = sorted(best_scores, reverse=True)[int(np.floor(len(best_scores)*sthresh_q))]
 
 		norm_scores = np.asarray([sthresh/score for score in best_scores], dtype=np.float32)
 
@@ -234,9 +236,14 @@ def optimize_constants(
 		death_mask = norm_satiation < 1
 		will_die = death_mask.astype(int)
 
-		stable_time = (stable_time*int(bool(will_die.sum()==n_to_die)))+int(bool(will_die.sum()==n_to_die)) 
+		if(bool(will_die.sum()!=n_to_die)):
+			stable_time = 0
+		else:
+			stable_time += 1
 
-		still_optimizing = bool(stable_time>2)
+		print(f"will die & n2 die: {will_die.sum()}, {n_to_die}")
+
+		still_optimizing = bool(stable_time<2)
 
 		n_to_die = will_die.sum()
 
