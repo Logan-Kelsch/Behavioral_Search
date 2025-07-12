@@ -921,6 +921,8 @@ def forest2features(
 	#t, i is transformation ID and stack indices for correlating transformation
 	t_supseq, i_supseq = utility.shortest_common_supersequence(seqs=tstacks)
 
+	#print(t_supseq)
+
 	#create hotloop for operating on oplist patterns
 	for t_ss, i_ss in zip(t_supseq, i_supseq):
 
@@ -990,7 +992,7 @@ def forest2features(
 			#this case is entered for the function max(x, delta)
 			case 1:
 				
-				pre = np.all(xptr==0, axis=0)
+				#pre = np.all(xptr==0, axis=0)
 
 				#this is using in place rolling max with per-column window sizes to 
 				#accomodate to inequal delta values for different sources
@@ -1004,17 +1006,17 @@ def forest2features(
 				for c in range(len(op_idx)):
 					xptr[:, op_idx[c]] = t_MAX(xptr[:, op_idx[c]], deltas[c])
 
-				post = np.all(xptr==0, axis=0)
+				#post = np.all(xptr==0, axis=0)
 
-				if(np.array_equal(pre, post)):
-					print('Success in case 1')
-				else:
-					print('Failure in case  1')
+				#if(np.array_equal(pre, post)):
+				#	print('Success in case 1')
+				#else:
+				#	print('Failure in case  1')
 
 			#this case is entered for the function min(x, delta)
 			case 2:
 				
-				pre = np.all(xptr==0, axis=0)
+				#pre = np.all(xptr==0, axis=0)
 
 				#this is using in place rolling min with per-column window sizes to 
 				#accomodate to inequal delta values for different sources
@@ -1026,17 +1028,17 @@ def forest2features(
 				for c in range(len(op_idx)):
 					xptr[:, op_idx[c]] = t_MIN(xptr[:, op_idx[c]], deltas[c])
 
-				post = np.all(xptr==0, axis=0)
+				#post = np.all(xptr==0, axis=0)
 
-				if(np.array_equal(pre, post)):
-					print('Success in case 2')
-				else:
-					print('Failure in case  2')
+				#if(np.array_equal(pre, post)):
+				#	print('Success in case 2')
+				#else:
+				#	print('Failure in case  2')
 
 			#this case is entered for the function avg(x, delta)
 			case 3:
 
-				pre = np.all(xptr==0, axis=0)
+				#pre = np.all(xptr==0, axis=0)
 
 				#go get the deltas and turn them into numpy array
 				#deltas are located in the first slot of parameter section of oplist
@@ -1048,29 +1050,29 @@ def forest2features(
 				for c in range(len(i_ss)):
 					xptr[:, op_idx[c]] = t_AVG(xptr[:, op_idx[c]], deltas[c])
 
-				post = np.all(xptr==0, axis=0)
+				#post = np.all(xptr==0, axis=0)
 
-				if(np.array_equal(pre, post)):
-					print('Success in case 3')
-				else:
-					print('Failure in case  3')
+				#if(np.array_equal(pre, post)):
+				#	print('Success in case 3')
+				#else:
+				#	print('Failure in case  3')
 				
 
 			#this case is entered for the function neg(x)
 			case 4:
 				
-				pre = np.all(xptr==0, axis=0)
+				#pre = np.all(xptr==0, axis=0)
 
 				#really almost nothing is needed here
 				#multiply the columns by -1
 				xptr[:, op_idx] *= -1
 
-				post = np.all(xptr==0, axis=0)
+				#post = np.all(xptr==0, axis=0)
 
-				if(np.array_equal(pre, post)):
-					print('Success in case 4')
-				else:
-					print('Failure in case  4')
+				#if(np.array_equal(pre, post)):
+				#	print('Success in case 4')
+				#else:
+				#	print('Failure in case  4')
 
 			#this case is entered for the function dif(x, alpha)
 			case 5:
@@ -1091,7 +1093,7 @@ def forest2features(
 
 				#first we have to build x (in the function definition of "x - alpha")
 				#we will do this by stacking vstk[i][-1] for each i in op_idx
-				x = np.stack([vstk[i][-1] for i in op_idx], axis=1)
+				#x = np.stack([vstk[i][-1] for i in op_idx], axis=1)
 
 				#print([vstk[i][-1] for i in op_idx])
 			
@@ -1103,6 +1105,13 @@ def forest2features(
 
 				#use missing boolean mask to find which indices to fill
 				fill_cols = op_idx[missing==1]
+				vstk_cols = op_idx[missing==0]
+				
+				#print(f'missing  :{missing}')
+				#print(f'fill cols:{fill_cols}')
+				
+				
+				#print(fill_cols)
 
 				#print(x.shape)
 
@@ -1110,19 +1119,31 @@ def forest2features(
 				#these will be used for column filling
 				consts = np.array([oplists[col][0][2][0] for col in fill_cols], dtype=xptr.dtype)
 
+				#print(f'constants:{consts}')
+				#print(type(consts[0]))
+
 				#fill in the 'empty' columns with the constant alphas 
-				xptr[:, fill_cols] = consts
+				for i, c in enumerate(fill_cols):
+					const_arr = np.full_like(xptr[:, c], fill_value=consts[i])
+					# x - alpha
+					xptr[:, c] -= const_arr
+					#print(f'SHAPE COMP:{xptr[:,c].shape}, {const_arr.shape}')
+
+				#from_vstk = [i for i, x in enumerate(op_idx) if x not in fill_cols]
 
 				#now here is the actual difference operation
 				#single c loop
 				#np.subtract(x, xptr[:, op_idx], out=xptr[:, op_idx])
 
-				for i, opidx in enumerate(fill_cols):
-					xptr[:, opidx] = vstk[opidx][-1] #- xptr[:, opidx]
+				for i, c in enumerate(vstk_cols):
+					#print(vstk[c][-1],xptr[:,c])
+					tmpv:np.ndarray = vstk[c][-1].copy()
+					tmpx:np.ndarray = xptr[:, c].copy()
+					xptr[:, c] = tmpv - tmpx
 
 				#this entire 2d array is no longer needed and the vstk value will be popped in the
 				#subsequent operation in oplist of those operation stacks
-				del x
+				#del x
 
 				#post = np.all(xptr==0, axis=0)
 
@@ -1173,7 +1194,11 @@ def forest2features(
 				consts = np.array([oplists[col][0][2][0] for col in fill_cols], dtype=xptr.dtype)
 
 				#fill in the 'empty' columns with the constant alphas 
-				xptr[:, fill_cols] = consts
+				for i, c in enumerate(fill_cols):
+					const_arr = np.full_like(xptr[:, c], fill_value=consts[i])
+					# x - alpha
+					xptr[:, c] -= const_arr
+					#print(f'SHAPE COMP:{xptr[:,c].shape}, {const_arr.shape}')
 
 				#now here is the actual difference operation
 				#single c loop
@@ -1202,7 +1227,7 @@ def forest2features(
 
 				#NOTE begin creation of max matrix NOTE#
 
-				post = np.all(xptr==0, axis=0)
+				#post = np.all(xptr==0, axis=0)
 
 				#this is using in place rolling max with per-column window sizes to 
 				#accomodate to inequal delta values for different sources
@@ -1370,12 +1395,12 @@ def forest2features(
 				#of whatever is being analyzed
 				xptr[:, op_idx] -= 0.5
 
-				post = np.all(xptr==0, axis=0)
+				#post = np.all(xptr==0, axis=0)
 
-				if(np.array_equal(pre, post)):
-					print('Success in case 7')
-				else:
-					print('Failure in case  7')
+				#if(np.array_equal(pre, post)):
+				#	print('Success in case 7')
+				#else:
+				#	print('Failure in case  7')
 
 			#this case is entered for the function hkp(x, kappa)
 			case 8:
@@ -1406,7 +1431,7 @@ def forest2features(
 			case -1:
 				#push all requested instances of vstk from collected instances
 				for i in i_ss:
-					vstk[i].append(xptr[:,i])
+					vstk[i].append(xptr[:,i].copy())
 
 			case -2:
 				for i in i_ss:
