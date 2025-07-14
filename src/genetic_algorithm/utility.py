@@ -51,11 +51,6 @@ def shortest_common_supersequence(
 
     return scs, idx_lists
 
-# Example usage:
-# seqs = [[1,2,3], [2,1,3], [1,3,2]]
-# scs, idxs = shortest_common_supersequence(seqs)
-# print("SCS:", scs)
-# print("Indices:", idxs)
 
 def quickfix_score_to_loss(
     scores  :   list
@@ -68,3 +63,34 @@ def quickfix_score_to_loss(
         losses.append( np.exp( 1 - np.exp(score) ) )
 
     return losses
+
+def pinder_resize(
+    val     :   float,
+    pinder  :   float,
+    space   :   tuple
+):
+    
+    size_space = space[1]-space[0]
+
+    if(space[1]<space[0]):
+        raise ValueError(f"Defined space for pinder resize is not logical. Got [{space[0]},{space[1]}]")
+
+    p_range = pinder*size_space
+
+    under = val - p_range
+    over = val + p_range
+
+    #first check if under needs to be passed to over
+    if(under<space[0]):
+        over += (space[0]-under)
+        under = space[0]
+
+    if(over>space[1]):
+        under += (over-space[1])
+        over = space[1]
+
+    if((under<space[0]) or (over>space[1])):
+        raise(f"pinder resize failed! check code."
+              f"val:{val},pinder:{pinder},space:{space}")
+    
+    return over, under

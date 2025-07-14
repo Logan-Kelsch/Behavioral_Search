@@ -6,8 +6,11 @@ import genetic_algorithm.population as poppy
 import genetic_algorithm.utility as utility
 import genetic_algorithm.mutation as mutation
 import genetic_algorithm.visualization as visualization
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import imageio
+import io
 
 def optimize_constants(
 	population  :   list,
@@ -38,24 +41,55 @@ def optimize_constants(
 	for s, score in enumerate(p_scorelist):
 		p_bests_iter[s].append(score)
 
+	#show current scoring of forest
+	plt.scatter(range(len(p_bests)), p_bests)
+	plt.title("bests")
+	plt.show()
+
+	frames = []
+	fig, ax = plt.subplots()
+	ax.scatter(range(len(p_bests)), p_bests)
+	ax.set_title(f"bests, iter:0")
+	buf = io.BytesIO()
+	fig.savefig(buf, format='png')
+	plt.close(fig)
+	buf.seek(0)
+	frames.append(imageio.imread(buf))
+
 	#takes the score marking the top sthersh
-	sthresh = sorted(p_bests, reverse=True)[int(np.floor(len(p_bests)*sthresh_q))]
+	sthresh = sorted(p_bests, reverse=False)[int(np.floor(len(p_bests)*sthresh_q))]
+	print(f"sthresh:{sthresh}")
+	print(f"Score bounds:[{min(p_bests)}, {max(p_bests)}]")
 
 	norm_scores = np.asarray([sthresh/score for score in p_scorelist], dtype=np.float32)
+	plt.scatter(range(norm_scores.shape[0]), norm_scores)
+	plt.title("norm scores")
+	plt.show()
 
 	#print(f'shape norm scores:{norm_scores.shape}')
 
 	#for half life, = 0.693147
-	kappa:np.float32 = -np.log(0.5) 
+	kappa = 0.5#-np.log(0.5) 
 
 	#this is also equal to (norm_score of sthresh) / (1 - e^-kappa)
 	init_satiation = 2
 
-	satiation = np.full((norm_scores.shape[0]), fill_value=init_satiation)
+	#intialize satiation
+	satiation = []
+	for i in range(norm_scores.shape[0]):
+		satiation.append(init_satiation)
+
+	#time roll satiation
+	for i in range(len(satiation)):
+		satiation[i] = satiation[i]*kappa + norm_scores[i]
 
 	#print(f'shape satiation:{satiation.shape}')
 
-	norm_satiation = np.asarray([init_satiation/s for s in satiation], dtype=np.float32)
+	norm_satiation = np.asarray([s/init_satiation for s in satiation], dtype=np.float32)
+
+	plt.scatter(range(norm_satiation.shape[0]), norm_satiation)
+	plt.title("norm satiation")
+	plt.show()
 
 	#print(f'shape normsatiation:{norm_satiation.shape}')
 
@@ -219,17 +253,43 @@ def optimize_constants(
 		for i in range(len(p_bests)):
 			p_bests[i] = min(p_bests_iter[i])
 
+		#show current scoring of forest
+		plt.scatter(range(len(p_bests)), p_bests)
+		plt.title("bests")
+		plt.show()
+
+		fig, ax = plt.subplots()
+		ax.scatter(range(len(p_bests)), p_bests)
+		ax.set_title(f"bests, iter:{iteration}")
+		buf = io.BytesIO()
+		fig.savefig(buf, format='png')
+		plt.close(fig)
+		buf.seek(0)
+		frames.append(imageio.imread(buf))
+
 		loop_forest = best_forest.copy()
 
 
 		#takes the score marking the top sthersh
-		#sthresh = sorted(best_scores, reverse=True)[int(np.floor(len(best_scores)*sthresh_q))]
+		#sthresh = sorted(best_scores, reverse=False)[int(np.floor(len(best_scores)*sthresh_q))]
+		print(f"sthresh:{sthresh}")
+		print(f"Score bounds:[{min(p_bests)}, {max(p_bests)}]")
 
 		norm_scores = np.asarray([sthresh/score for score in best_scores], dtype=np.float32)
+		plt.scatter(range(norm_scores.shape[0]), norm_scores)
+		plt.title("norm scores")
+		plt.show()
 
-		satiation = satiation*kappa + norm_scores
+		#time roll satiation
+		for i in range(len(satiation)):
+			satiation[i] = satiation[i]*kappa + norm_scores[i]
 
-		norm_satiation = init_satiation/satiation
+		for i in range(len(satiation)):
+			norm_satiation[i] = satiation[i]/init_satiation
+
+		plt.scatter(range(norm_satiation.shape[0]), norm_satiation)
+		plt.title("norm satiation")
+		plt.show()
 
 		desperation = 1/(norm_satiation**2)
 
@@ -260,5 +320,7 @@ def optimize_constants(
 			if(p_bests_iter[i][j]<time_best):
 				time_best = p_bests_iter[i][j]
 		best_scores_over_time.append(time_best)
+
+	imageio.mimsave('bests_animation.gif', frames, fps=5, loop=0)
 
 	return loop_forest, p_bests, best_scores_over_time

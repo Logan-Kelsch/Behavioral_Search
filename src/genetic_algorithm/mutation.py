@@ -6,6 +6,7 @@ import genetic_algorithm.transforms as transforms
 import genetic_algorithm.population as population
 import genetic_algorithm.evaluation as evaluation
 import genetic_algorithm.visualization as visualization
+import genetic_algorithm.utility as utility
 
 import random
 import copy
@@ -128,12 +129,11 @@ def mutate_constant(
 
 	pin_der = math.erf(dev / math.sqrt(2)) / 2
 
-	u_under, u_over = random.uniform(0, pin_der), random.uniform(0, pin_der)
+	#u_under, u_over = random.uniform(0, pin_der), random.uniform(0, pin_der)
 
-	area = np.exp(-val)
-
-	area_under= max(area - u_under,0.0)
-	area_over = min(area + u_over, 1.0)
+	#area = np.exp(-val)
+	#area_under= max(area - u_under,0.0)
+	#area_over = min(area + u_over, 1.0)
 
 
 
@@ -141,21 +141,23 @@ def mutate_constant(
 
 		case 'kappa':
 
-			delta_under = -np.log(area_under) if area_under > 0 else float("-inf")
-			delta_over	= -np.log(area_over) if area_over > 0 else float("-inf")
+			clip_at = (0.0001, 239)
 
-			under = int(np.clip(val-delta_under, 1, 239))
-			over  = int(np.clip(val+delta_over, 1, 239))
+			rupi_over, rupi_under = utility.pinder_resize(val=val, pinder=pin_der, space=clip_at)
+
+			under = random.uniform(rupi_under, val)
+			over  = random.uniform(val, rupi_over )
 
 			return under, over
 		
 		case 'delta':
 
-			delta_under = -np.log(area_under) if area_under > 0 else float("-inf")
-			delta_over	= -np.log(area_over) if area_over > 0 else float("-inf")
+			clip_at = (1, 239)
 
-			under = round(np.clip(val-delta_under, 1, 239))
-			over  = round(np.clip(val+delta_over, 1, 239))
+			rupi_over, rupi_under = utility.pinder_resize(val=val, pinder=pin_der, space=clip_at)
+
+			under = round(random.uniform(rupi_under, val))
+			over  = round(random.uniform(val, rupi_over ))
 
 			return under, over
 		
