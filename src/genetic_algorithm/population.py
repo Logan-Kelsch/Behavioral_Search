@@ -55,3 +55,23 @@ def oplist2forests(
 		add_n -= batch_size
 
 	return forest_batches, prll_idx_batches
+
+def extract_n_best_trees(
+	forest	:	list,
+	scores	:	list,
+	n		:	int
+):
+	wf = forest.copy()
+	ws = scores.copy()
+
+	output_forest = []
+	output_scores = []
+
+	for it in range(n):
+		best_idx = ws.index(min(ws))
+		output_forest.append(wf[best_idx])
+		output_scores.append(ws[best_idx])
+		wf.pop(best_idx)
+		ws.pop(best_idx)
+
+	return output_forest, output_scores

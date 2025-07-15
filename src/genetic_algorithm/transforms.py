@@ -754,6 +754,26 @@ class T_node:
 		else:
 			return self._x
 		
+	def get_depth(
+		self
+	)	->	list:
+		
+		'''
+		this function is a recursive calling function for an external function 'get_tree_depth'.
+		goes down all branches to see how many non-root T_nodes there are in the tree
+		'''
+
+		#accounting for THIS node
+		lcl_cnt = 1
+
+		if(isinstance(self._x, T_node)):
+			lcl_cnt += self._x.get_depth()
+
+		if(isinstance(self._alpha, T_node)):
+			lcl_cnt += self._alpha.get_depth()
+
+		return lcl_cnt
+
 	@property
 	def alpha(self):
 		return self._alpha
@@ -802,6 +822,21 @@ class T_node:
 	def type(self, new:any):
 		self._type
 		
+def get_tree_depth(
+	root	:	T_node
+)	->	list:
+	
+	depths = [0,0]
+
+	if(isinstance(root._x, T_node)):
+		depths[0] = root._x.get_depth()
+
+	if(isinstance(root._alpha, T_node)):
+		depths[1] = root._alpha.get_depth()
+
+	return depths
+
+
 def get_oplist(
 	root	:	T_node
 ) -> list:
@@ -819,6 +854,7 @@ def get_oplist(
 
 	#return the results from the root node
 	return root.get_tlist(tlist=tlist)
+
 
 def oplist2tstack(
 	oplist	:	list
@@ -1045,7 +1081,7 @@ def forest2features(
 				deltas = [oplists[i][0][2][0] for i in i_ss]
 
 				#print(f"transs: {[oplists[i][0][0] for i in i_ss]}")
-				print(f"deltas: {deltas}")
+				#print(f"deltas: {deltas}")
 
 				for c in range(len(i_ss)):
 					xptr[:, op_idx[c]] = t_AVG(xptr[:, op_idx[c]], deltas[c])

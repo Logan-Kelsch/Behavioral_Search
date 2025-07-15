@@ -42,9 +42,9 @@ def optimize_constants(
 		p_bests_iter[s].append(score)
 
 	#show current scoring of forest
-	plt.scatter(range(len(p_bests)), p_bests)
-	plt.title("bests")
-	plt.show()
+	#plt.scatter(range(len(p_bests)), p_bests)
+	#plt.title("bests")
+	#plt.show()
 
 	frames = []
 	fig, ax = plt.subplots()
@@ -62,9 +62,9 @@ def optimize_constants(
 	print(f"Score bounds:[{min(p_bests)}, {max(p_bests)}]")
 
 	norm_scores = np.asarray([sthresh/score for score in p_scorelist], dtype=np.float32)
-	plt.scatter(range(norm_scores.shape[0]), norm_scores)
-	plt.title("norm scores")
-	plt.show()
+	#plt.scatter(range(norm_scores.shape[0]), norm_scores)
+	#plt.title("norm scores")
+	#plt.show()
 
 	#print(f'shape norm scores:{norm_scores.shape}')
 
@@ -87,9 +87,19 @@ def optimize_constants(
 
 	norm_satiation = np.asarray([s/init_satiation for s in satiation], dtype=np.float32)
 
-	plt.scatter(range(norm_satiation.shape[0]), norm_satiation)
-	plt.title("norm satiation")
-	plt.show()
+	#plt.scatter(range(norm_satiation.shape[0]), norm_satiation)
+	#plt.title("norm satiation")
+	#plt.show()
+
+	frames_ns = []
+	fig_ns, ax_ns = plt.subplots()
+	ax_ns.scatter(range(norm_satiation.shape[0]), norm_satiation)
+	ax_ns.set_title(f"norm_satiation, iter:0")
+	buf_ns = io.BytesIO()
+	fig_ns.savefig(buf_ns, format='png')
+	plt.close(fig_ns)
+	buf_ns.seek(0)
+	frames_ns.append(imageio.imread(buf_ns))
 
 	#print(f'shape normsatiation:{norm_satiation.shape}')
 
@@ -237,8 +247,7 @@ def optimize_constants(
 			forest_batches=forest_batches,
 			prll_idx_batches=prll_idx_batches,
 			close_prices=x_raw[:, 3],
-			lag_range=(2, 4),
-			n_bins=300
+			lag_range=(2, 4)
 		)
 
 		#print(best_scores)
@@ -254,9 +263,9 @@ def optimize_constants(
 			p_bests[i] = min(p_bests_iter[i])
 
 		#show current scoring of forest
-		plt.scatter(range(len(p_bests)), p_bests)
-		plt.title("bests")
-		plt.show()
+		#plt.scatter(range(len(p_bests)), p_bests)
+		#plt.title("bests")
+		#plt.show()
 
 		fig, ax = plt.subplots()
 		ax.scatter(range(len(p_bests)), p_bests)
@@ -271,14 +280,14 @@ def optimize_constants(
 
 
 		#takes the score marking the top sthersh
-		#sthresh = sorted(best_scores, reverse=False)[int(np.floor(len(best_scores)*sthresh_q))]
+		sthresh = sorted(best_scores, reverse=False)[int(np.floor(len(best_scores)*sthresh_q))]
 		print(f"sthresh:{sthresh}")
 		print(f"Score bounds:[{min(p_bests)}, {max(p_bests)}]")
 
 		norm_scores = np.asarray([sthresh/score for score in best_scores], dtype=np.float32)
-		plt.scatter(range(norm_scores.shape[0]), norm_scores)
-		plt.title("norm scores")
-		plt.show()
+		#plt.scatter(range(norm_scores.shape[0]), norm_scores)
+		#plt.title("norm scores")
+		#plt.show()
 
 		#time roll satiation
 		for i in range(len(satiation)):
@@ -287,9 +296,18 @@ def optimize_constants(
 		for i in range(len(satiation)):
 			norm_satiation[i] = satiation[i]/init_satiation
 
-		plt.scatter(range(norm_satiation.shape[0]), norm_satiation)
-		plt.title("norm satiation")
-		plt.show()
+		#plt.scatter(range(norm_satiation.shape[0]), norm_satiation)
+		#plt.title("norm satiation")
+		#plt.show()
+
+		fig_ns, ax_ns = plt.subplots()
+		ax_ns.scatter(range(norm_satiation.shape[0]), norm_satiation)
+		ax_ns.set_title(f"norm_satiation, iter:{iteration}")
+		buf_ns = io.BytesIO()
+		fig_ns.savefig(buf_ns, format='png')
+		plt.close(fig_ns)
+		buf_ns.seek(0)
+		frames_ns.append(imageio.imread(buf_ns))
 
 		desperation = 1/(norm_satiation**2)
 
@@ -321,6 +339,7 @@ def optimize_constants(
 				time_best = p_bests_iter[i][j]
 		best_scores_over_time.append(time_best)
 
-	imageio.mimsave('bests_animation.gif', frames, fps=5, loop=0)
+	imageio.mimsave('scores.gif', frames, fps=3, loop=0)
+	imageio.mimsave('normss.gif', frames_ns, fps=3, loop=0)
 
 	return loop_forest, p_bests, best_scores_over_time

@@ -12,161 +12,79 @@ from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
 from typing import Tuple, List, Any
 
+
 def evaluate_forest_newer(
 	forest: np.ndarray,
 	close_prices: np.ndarray,
-	lag_range: Tuple[int, int] = (1,5),
-	n_bins: int = 50
-) -> Tuple[pd.DataFrame, List[int], List[float]]:
-	"""
-	Plot cumulative P&L over time for top signals (best lagged profit),
-	plot distribution of raw P&L values with zero-centered bins,
-	and return combined score list aligned to every signal (including disqualified as -100).
+	lag_range: Tuple[int, int] = (2, 5)
+):
+    """
+    For each feature in `forest` and each simple threshold signal,
+    finds the lag in lag_range that maximizes the absolute
+    information coefficient with the forward-n return:
+        (price[t+lag] / price[t]) - 1
+    Returns:
+      - scores_df: DataFrame with index "feat_i_label[lag=k]" and column "ic"
+      - feature_idx_list: unique feature indices in the order they first appear
+      - eval_score_list: corresponding IC values (nan→0) for each feature index
+    """
+    # 1) price series
+    price = pd.Series(close_prices)
 
-	Returns:
-	- scores_df: DataFrame of metrics for QUALIFIED signals, sorted by combined
-	- feature_idx_list: unique feature indices with combined > 0
-	- combined_list: list of combined scores for ALL signal keys in the full iteration order,
-					 with -100 for disqualified or constant signals
-	"""
-	# returns series
-	returns = pd.Series(close_prices).pct_change().fillna(0)
-	market_cum = returns.cumsum()
+    # 2) unpack lags
+    min_lag, max_lag = lag_range
 
-	# lagged returns for IC
-	min_lag, max_lag = lag_range
-	returns_lagged = {lag: returns.shift(-lag) for lag in range(min_lag, max_lag+1)}
+    # 3) precompute forward-n returns for each lag
+    forward_returns = {
+        lag: (price.shift(-lag) / price - 1).fillna(0)
+        for lag in range(min_lag, max_lag + 1)
+    }
 
-	# prepare features
-	n_samples, n_trees = forest.shape
-	feature_names = [f"feat_{i}" for i in range(n_trees)]
-	df_feats = pd.DataFrame(forest, columns=feature_names)
+    # 4) prepare features
+    feature_names = [f"feat_{i}" for i in range(forest.shape[1])]
+    df_feats = pd.DataFrame(forest, columns=feature_names).fillna(0)
 
-	cum_pnl_dict = {}
-	raw_pnl_dict = {}
-	scores = {}
-	full_keys = []
+    # 5) compute best‐lag IC for every feature+signal
+    ic_scores = {}
+    for col in feature_names:
+        feat = df_feats[col]
 
-	# iterate and score every signal, recording even disqualified with -100
-	for col in feature_names:
-		feat = df_feats[col]
-		# define signals always
-		signals = {
-			'>mean':  (feat > feat.mean()).astype(int),
-			'<mean':  (feat < feat.mean()).astype(int),
-			'>0':     (feat > 0).astype(int),
-			'<0':     (feat < 0).astype(int),
-		}
-		feature_bad = feat.isna().all() or (feat.fillna(0)==0).all()
+        signals = {
+            '>mean': (feat > feat.mean()).astype(int),
+            '<mean': (feat < feat.mean()).astype(int),
+            '>0':    (feat > 0).astype(int),
+            '<0':    (feat < 0).astype(int),
+        }
 
-		for label, sig in signals.items():
-			key = f"{col}_{label}"
-			full_keys.append(key)
+        for label, sig in signals.items():
+            best_ic = None
+            best_lag = None
 
-			# disqualify if feature bad or signal constant
-			if feature_bad or sig.nunique()<=1:
-				# placeholder metrics
-				scores[key] = {
-					'ic': -100.0,
-					'profit': -100.0,
-					'r2': -100.0,
-					'infrequency': -100.0,
-					'lnpl': -100.0,
-					'combined': -100.0
-				}
-				continue
+            for lag, ret in forward_returns.items():
+                ic = sig.corr(ret)
+                if best_ic is None or abs(ic) > abs(best_ic):
+                    best_ic = ic
+                    best_lag = lag
 
-			# find best lag by profit
-			best_profit = None
-			best_lag = None
-			for lag in range(min_lag, max_lag+1):
-				exec_sig_k = sig.shift(lag).fillna(0)
-				profit_k = (exec_sig_k * returns).sum()
-				if best_profit is None or profit_k > best_profit:
-					best_profit = profit_k
-					best_lag = lag
+            key = f"{col}_{label}[lag={best_lag}]"
+            ic_scores[key] = best_ic
 
-			# compute with best lag
-			exec_sig = sig.shift(best_lag).fillna(0)
-			raw_pnl = exec_sig * returns
-			cum_pnl = raw_pnl.cumsum()
-			raw_pnl_dict[key] = raw_pnl
-			cum_pnl_dict[key] = cum_pnl
+    # 6) build scores_df
+    scores_df = pd.Series(ic_scores, name='ic').to_frame()
 
-			# metrics
-			ic = max(abs(returns_lagged[lag].corr(feat)) for lag in returns_lagged)
-			total_profit = raw_pnl.sum()
-			time_idx = np.arange(len(cum_pnl)).reshape(-1,1)
-			lr = LinearRegression().fit(time_idx, cum_pnl.values)
-			consistency = r2_score(cum_pnl.values, lr.predict(time_idx))
-			infrequency = 1.0 - exec_sig.sum()/n_samples
-			sum_pos = raw_pnl[raw_pnl>0].sum()
-			sum_neg = -raw_pnl[raw_pnl<0].sum()
-			ratio = sum_pos/sum_neg if sum_neg>0 else (np.inf if sum_pos>0 else 1.0)
-			lnpl = np.log(ratio) if ratio>0 else -np.inf
-			combined = total_profit * consistency * infrequency
-			neg_count = sum([total_profit<0, consistency<0, lnpl<0])
-			if neg_count>=2:
-				combined = -abs(combined)
+    # 7) unique feature index list + eval_score_list
+    feature_idx_list = []
+    eval_score_list  = []
+    for key in scores_df.index:
+        ic_val = scores_df.loc[key, 'ic']
+        idx = int(key.split('_')[1])
+        if idx not in feature_idx_list:
+            feature_idx_list.append(idx)
+            eval_score_list.append(0 if np.isnan(ic_val) else ic_val)
 
-			scores[key] = {
-				'ic': ic,
-				'profit': total_profit,
-				'r2': consistency,
-				'infrequency': infrequency,
-				'lnpl': lnpl,
-				'combined': combined
-			}
+    return scores_df, feature_idx_list, eval_score_list
 
-	# build DataFrames for qualified only
-	pnls = pd.concat(cum_pnl_dict, axis=1)
-	scores_df = pd.DataFrame({k:v for k,v in scores.items() if v['combined']!=-100.0}).T
-	scores_df = scores_df.sort_values('combined', ascending=False)
 
-	# feature indices with combined>0
-	feature_idx_list = []
-	eval_score_list  = []
-	for key in scores_df.index:
-		combined_score = scores_df.loc[key, 'combined']
-		idx = int(key.split('_')[1])
-		if idx not in feature_idx_list:
-			feature_idx_list.append(idx)
-			eval_score_list.append(combined_score)
-
-	# combined_list aligned to full_keys
-	combined_list = [scores[k]['combined'] for k in full_keys]
-
-	# identify best for plotting
-	best = {
-		'Best IC':       scores_df['ic'].idxmax(),
-		'Best Profit':   scores_df['profit'].idxmax(),
-		'Best R2':       scores_df['r2'].idxmax(),
-		'Best Combined': scores_df['combined'].idxmax()
-	}
-
-	# plot cumulative
-	plt.figure(figsize=(12,6))
-	plt.plot(market_cum, color='black', label='Market')
-	for title, sig_key in best.items():
-		plt.plot(pnls[sig_key], label=f"{title} ({sig_key})")
-	plt.legend(); plt.xlabel("Time"); plt.ylabel("Cumulative P&L")
-	plt.title("Cumulative P&L: Market vs. Top Signals"); plt.tight_layout(); plt.show()
-
-	# zero-centered distribution
-	all_top = np.concatenate([raw_pnl_dict[k].values for k in best.values()])
-	M = np.max(np.abs(all_top))
-	bins = np.linspace(-M, M, n_bins+1)
-	plt.figure(figsize=(10,6))
-	for title, sig_key in best.items():
-		data = raw_pnl_dict[sig_key].dropna()
-		plt.hist(data, bins=bins, density=True,
-				 histtype='step', label=title)
-	plt.axvline(0,color='black',linewidth=1)
-	plt.legend(); plt.xlabel("PnL per period"); plt.ylabel("Density")
-	plt.title("Distribution of PnL for Top Signals (Zero-Centered)")
-	plt.tight_layout(); plt.show()
-
-	return scores_df, feature_idx_list, combined_list
 
 
 def evaluate_forest(
@@ -348,8 +266,7 @@ def get_best_forest(
 	forest_batches	:	list,
 	prll_idx_batches:	list,
 	close_prices	:	np.ndarray,
-	lag_range		:	Tuple[int,int] = (2, 5),
-	n_bins			:	int	=	50
+	lag_range		:	Tuple[int,int] = (2, 5)
 ):
 	
 	scores_batches = []
@@ -357,7 +274,7 @@ def get_best_forest(
 	print(f'forfeat forest type: {type(forfeat_batches[0])}')
 
 	for forest in forfeat_batches:
-		_, __, local_scores = evaluate_forest(forest,close_prices,lag_range,n_bins)
+		_, __, local_scores = evaluate_forest_newer(forest,close_prices,lag_range)
 		scores_batches.append(local_scores)
 
 	forest_size = len(forest_batches[0])
