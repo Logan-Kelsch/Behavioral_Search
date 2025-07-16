@@ -32,7 +32,7 @@ def oplist2forests(
 	n_batches = int(np.ceil(n_trees/batch_size))
 
 
-	print(f'n_trees:{n_trees}\nn_batches:{n_batches}')
+	#print(f'n_trees:{n_trees}\nn_batches:{n_batches}')
 	
 
 	forest_batches	= [[] for _ in range(n_batches)]
@@ -56,10 +56,13 @@ def oplist2forests(
 
 	return forest_batches, prll_idx_batches
 
+import matplotlib.pyplot as plt
+
 def extract_n_best_trees(
 	forest	:	list,
 	scores	:	list,
-	n		:	int
+	n		:	int,
+	run_dir	:	str	=	''
 ):
 	wf = forest.copy()
 	ws = scores.copy()
@@ -67,11 +70,24 @@ def extract_n_best_trees(
 	output_forest = []
 	output_scores = []
 
+	break_early = False
+	if(n==-1):
+		n = len(forest)
+		break_early = True
+
 	for it in range(n):
 		best_idx = ws.index(min(ws))
+		if(break_early):
+			if(min(ws)>0.99):
+				break
 		output_forest.append(wf[best_idx])
 		output_scores.append(ws[best_idx])
 		wf.pop(best_idx)
 		ws.pop(best_idx)
+
+	if(run_dir!=''):
+		plt.scatter(range(len(output_scores)), output_scores)
+		plt.title('Scores of Selected Features for NN')
+		plt.savefig(str(run_dir / 'selected_feats.png'))
 
 	return output_forest, output_scores

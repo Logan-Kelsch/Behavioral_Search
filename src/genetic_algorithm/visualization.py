@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pydot
 from IPython.display import Image
 
-def visualize_tree(root, filename='tree.png'):
+def visualize_tree(root, run_dir:str=None):
     """
     Visualize a binary tree with children `._x` and `._alpha` using pydot.
     Non-leaf nodes are deduplicated (cached), while each leaf instance
@@ -53,12 +53,17 @@ def visualize_tree(root, filename='tree.png'):
         return gname
 
     recurse(root)
-    graph.write_png(filename)
-    return Image(filename)
+    
+    if(run_dir!=None):
+        graph.write_png(str(run_dir / 'best_tree.png'))
+        return Image(str(run_dir / 'best_tree.png'))
+    else:
+        graph.write_png('best_tree.png')
+        return Image('best_tree.png')
 
 
 
-def visualize_all_distributions(x):
+def visualize_all_distributions(x, show:bool=False):
     # grid layout: adjust ncols as needed
     n_features = x.shape[1]
     ncols = int(np.ceil(np.sqrt(n_features / 1.77) * 1.77))
@@ -92,9 +97,72 @@ def visualize_all_distributions(x):
         ax.set_yticks([])
         ax.margins(0)
 
+    
+
     # turn off any extra axes
     for ax in axes[n_features:]:
         ax.axis('off')
 
-    plt.subplots_adjust(hspace=0, wspace=0)
-    plt.show()
+    if(show):
+        plt.subplots_adjust(hspace=0, wspace=0)
+        plt.show()
+
+    return fig, axes
+
+from sklearn.metrics import r2_score, confusion_matrix
+
+def visualize_regression_eval(
+    y_test,
+    y_pred,
+    plot_lims   :   float   =   0.015,
+    title       :   str     =   'Scatter with Quadrant Counts',
+    show        :   bool    =   False,
+    run_dir     :   str     =   '.'
+):
+    y_test_dir = y_test >= 0
+    y_pred_dir = y_pred >= 0
+    cm = confusion_matrix(y_test_dir, y_pred_dir)
+    counts = cm
+    r2 = r2_score(y_test, y_pred)
+    accuracy = (cm[0, 0] + cm[1, 1]) / cm.sum()
+
+    fig, ax = plt.subplots(figsize=(9,6))
+
+    # Shaded quadrants via pcolormesh
+    x_edges = [-plot_lims, 0, plot_lims]
+    y_edges = [-plot_lims, 0, plot_lims]
+    mesh = ax.pcolormesh(x_edges, y_edges, counts, cmap='Greens', alpha=0.4, shading='auto')
+
+    # Overlay scatter of individual points
+    ax.scatter(y_pred, y_test, alpha=0.75, color='black', s=5)
+
+    # Annotate each quadrant with its count
+    positions = [(-plot_lims/2, -plot_lims/2), (plot_lims/2, -plot_lims/2), (-plot_lims/2, plot_lims/2), (plot_lims/2, plot_lims/2)]
+    for (ypos, xpos), count in zip(positions, counts.flatten()):
+        ax.text(ypos, xpos, f"{int(count)}", ha='center', va='center', fontsize=16, color='black',
+        bbox=dict(facecolor='white', edgecolor='white', boxstyle='round,pad=0.2')
+                )
+
+    # Draw quadrant divider lines at zero
+    ax.axhline(0, color='black')
+    ax.axvline(0, color='black')
+    ax = plt.gca()
+    x_vals = np.array(ax.get_xlim())
+    y_vals = x_vals  # Since y = x
+    plt.plot(x_vals, y_vals, '-', color='black', label='y = x', linewidth=0.5)
+    # Set axes limits and labels
+    ax.set_xlim(-plot_lims, plot_lims)
+    ax.set_ylim(-plot_lims, plot_lims)
+    ax.set_ylabel('Actual Value')
+    ax.set_xlabel('Predicted Value')
+    ax.set_title(f'{title} (R2: {r2:.4}, ACC: {accuracy:.2%})')
+
+    # Add colorbar for quadrant shading
+    cbar = fig.colorbar(mesh, ax=ax, extend='neither')
+    cbar.set_label('Count per Quadrant')
+
+    if(show):
+        plt.tight_layout()
+        plt.show()
+
+    fig.savefig(str(run_dir / f'{title}.png'))

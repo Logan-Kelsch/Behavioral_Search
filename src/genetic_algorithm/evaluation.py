@@ -16,7 +16,7 @@ from typing import Tuple, List, Any
 def evaluate_forest_newer(
 	forest: np.ndarray,
 	close_prices: np.ndarray,
-	lag_range: Tuple[int, int] = (2, 5)
+	lag_range: Tuple[int, int] = (1, 5)
 ):
     """
     For each feature in `forest` and each simple threshold signal,
@@ -271,7 +271,7 @@ def get_best_forest(
 	
 	scores_batches = []
 
-	print(f'forfeat forest type: {type(forfeat_batches[0])}')
+	#print(f'forfeat forest type: {type(forfeat_batches[0])}')
 
 	for forest in forfeat_batches:
 		_, __, local_scores = evaluate_forest_newer(forest,close_prices,lag_range)
@@ -293,3 +293,97 @@ def get_best_forest(
 	#also return the scores from each
 
 	return best_forest, best_scores
+
+import tensorflow as tf
+from keras.callbacks import EarlyStopping
+import matplotlib.pyplot as plt
+
+def standard_NN_construction(X_train, y_train):
+
+	from keras.optimizers.schedules import ExponentialDecay
+
+	reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
+		monitor='val_loss',
+		factor=0.84, 
+		patience=8, 
+		min_lr=1e-6
+	)
+	early_stopping = EarlyStopping(monitor='loss', patience=25, mode='min', restore_best_weights=True)
+
+	opt  = tf.keras.optimizers.Adam(learning_rate=0.01)
+	opt2 = tf.keras.optimizers.SGD(learning_rate=0.01)
+
+	def build_model():
+		model = tf.keras.Sequential([
+			tf.keras.layers.Input(shape=(X_train.shape[1],)),
+			tf.keras.layers.Dense(64, activation='linear'),
+			tf.keras.layers.BatchNormalization(),
+			tf.keras.layers.Dense(64, activation='linear'),  
+			tf.keras.layers.Dropout(0.3),
+			tf.keras.layers.Dense(64, activation='linear'),       
+			tf.keras.layers.Dense(1, activation='linear')  # Output layer for regression
+		])
+		
+		rmse='root_mean_squared_error'
+
+		model.compile(optimizer=opt2, loss='mse', metrics=['R2Score'])
+		return model
+
+
+	epochs = 250
+
+	with tf.device('/GPU:0'):
+		model = build_model()
+		history = model.fit(X_train, y_train, epochs=epochs, batch_size=256, \
+						validation_split=0.2, verbose=1, shuffle=False, callbacks=[reduce_lr, early_stopping])
+		
+	return model, history
+
+import genetic_algorithm.visualization as visualization
+
+def standard_NN_evaluation(
+	X_train,X_test,y_train,y_test,
+	model,
+	history,
+	run_dir
+):
+	y_pred = model.predict(X_test)
+	y_pred_train = model.predict(X_train)
+
+	visualization.visualize_regression_eval(y_test=y_train, y_pred=y_pred_train, title='Self Test', run_dir=run_dir)
+	visualization.visualize_regression_eval(y_test=y_test, y_pred=y_pred, title='Independent Test', run_dir=run_dir)
+
+	loss = history.history['loss'][1:]
+	val_loss = history.history.get('val_loss', [])[1:]
+	lr = history.history['learning_rate'][1:]
+	epochs = range(2, len(loss) + 2)  # since we sliced off the first
+
+	fig, ax1 = plt.subplots(figsize=(9, 6))
+
+	# Plot loss on left y‐axis
+	ax1.plot(epochs, loss,   label='Train Loss',      color='black')
+	if val_loss:
+		ax1.plot(epochs, val_loss, label='Validation Loss', color='red')
+	ax1.set_yscale('log')
+	ax1.set_xlabel('Epoch')
+	ax1.set_ylabel('Loss')
+	ax1.legend(loc='upper right')
+
+	# Create a second y‐axis sharing the same x
+	ax2 = ax1.twinx()
+	ax2.plot(epochs, lr, label='Learning Rate', color='gray', linestyle='--')
+	ax2.set_ylabel('Learning Rate')
+	ax2.legend(loc='upper right')
+
+	plt.title('Loss & Learning Rate over Epochs')
+	h1, l1 = ax1.get_legend_handles_labels()
+	h2, l2 = ax2.get_legend_handles_labels()
+
+	# combine them and draw one legend on ax1:
+	ax1.legend(h1 + h2, l1 + l2, loc='upper right', ncol=3)
+
+
+	#plt.tight_layout()
+	#plt.show()
+	plt.tight_layout()
+	fig.savefig(str(run_dir / 'training.png'))

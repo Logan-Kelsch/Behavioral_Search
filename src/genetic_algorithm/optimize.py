@@ -11,14 +11,18 @@ import numpy as np
 import pandas as pd
 import imageio
 import io
+import re
+from pathlib import Path
 
 def optimize_constants(
 	population  :   list,
 	x_raw		:	np.ndarray,
 	sthresh_q	:	float	=	0.25,
 	max_iter    :   int     =   -1,
-	dyn_sthresh :   bool    =   True
+	dyn_sthresh :   bool    =   True,
+	run_dir		:	str		=	None
 ):
+	assert run_dir!=None, 'Must assert a run directory to track progress.'
 	
 	loop_forest = population
 
@@ -32,7 +36,7 @@ def optimize_constants(
 
 	p_scorelist = utility.quickfix_score_to_loss(p_scorelist)
 
-	print(p_scorelist)
+	#print(p_scorelist)
 
 	#initialize score comparisons to track bests
 
@@ -46,20 +50,10 @@ def optimize_constants(
 	#plt.title("bests")
 	#plt.show()
 
-	frames = []
-	fig, ax = plt.subplots()
-	ax.scatter(range(len(p_bests)), p_bests)
-	ax.set_title(f"bests, iter:0")
-	buf = io.BytesIO()
-	fig.savefig(buf, format='png')
-	plt.close(fig)
-	buf.seek(0)
-	frames.append(imageio.imread(buf))
-
 	#takes the score marking the top sthersh
 	sthresh = sorted(p_bests, reverse=False)[int(np.floor(len(p_bests)*sthresh_q))]
-	print(f"sthresh:{sthresh}")
-	print(f"Score bounds:[{min(p_bests)}, {max(p_bests)}]")
+	#print(f"sthresh:{sthresh}")
+	#print(f"Score extrema: [{min(p_bests)}, {max(p_bests)}]")
 
 	norm_scores = np.asarray([sthresh/score for score in p_scorelist], dtype=np.float32)
 	#plt.scatter(range(norm_scores.shape[0]), norm_scores)
@@ -91,15 +85,19 @@ def optimize_constants(
 	#plt.title("norm satiation")
 	#plt.show()
 
+	frames = []
 	frames_ns = []
-	fig_ns, ax_ns = plt.subplots()
-	ax_ns.scatter(range(norm_satiation.shape[0]), norm_satiation)
-	ax_ns.set_title(f"norm_satiation, iter:0")
-	buf_ns = io.BytesIO()
-	fig_ns.savefig(buf_ns, format='png')
-	plt.close(fig_ns)
-	buf_ns.seek(0)
-	frames_ns.append(imageio.imread(buf_ns))
+	frames_dfig = []
+	frames_daxs = []
+
+	frames.append(p_bests)
+	frames_ns.append(norm_satiation)
+
+	x_viz = pd.DataFrame(p_arr)
+	d_fig, d_axes = visualization.visualize_all_distributions(x=x_viz, show=False)
+
+	frames_dfig.append(d_fig)
+	frames_daxs.append(d_axes)
 
 	#print(f'shape normsatiation:{norm_satiation.shape}')
 
@@ -116,7 +114,7 @@ def optimize_constants(
 
 	iteration = 0
 
-	print('entering opt loop')
+	#print('entering opt loop')
 
 	while(still_optimizing):
 
@@ -238,7 +236,10 @@ def optimize_constants(
 			forfeat_batches.append(transforms.forest2features(forest_batches[batch], x_raw))
 
 		x_viz = pd.DataFrame(forfeat_batches[0])
-		visualization.visualize_all_distributions(x=x_viz)
+		d_fig, d_axes = visualization.visualize_all_distributions(x=x_viz, show=False)
+
+		frames_dfig.append(d_fig)
+		frames_daxs.append(d_axes)
 
 		#print(f'opt-- forfeat[0] shape: {forfeat_batches[1].shape}')
 
@@ -254,7 +255,7 @@ def optimize_constants(
 
 		best_scores = utility.quickfix_score_to_loss(best_scores)
 
-		print(best_scores)
+		#print(best_scores)
 
 		for i in range(len(p_bests_iter)):
 			p_bests_iter[i].append(best_scores[i])
@@ -267,22 +268,15 @@ def optimize_constants(
 		#plt.title("bests")
 		#plt.show()
 
-		fig, ax = plt.subplots()
-		ax.scatter(range(len(p_bests)), p_bests)
-		ax.set_title(f"bests, iter:{iteration}")
-		buf = io.BytesIO()
-		fig.savefig(buf, format='png')
-		plt.close(fig)
-		buf.seek(0)
-		frames.append(imageio.imread(buf))
+		frames.append(best_scores.copy())
 
 		loop_forest = best_forest.copy()
 
 
 		#takes the score marking the top sthersh
 		sthresh = sorted(best_scores, reverse=False)[int(np.floor(len(best_scores)*sthresh_q))]
-		print(f"sthresh:{sthresh}")
-		print(f"Score bounds:[{min(p_bests)}, {max(p_bests)}]")
+		#print(f"sthresh:{sthresh}")
+		#print(f"Score extrema:[{min(p_bests)}, {max(p_bests)}]")
 
 		norm_scores = np.asarray([sthresh/score for score in best_scores], dtype=np.float32)
 		#plt.scatter(range(norm_scores.shape[0]), norm_scores)
@@ -300,37 +294,29 @@ def optimize_constants(
 		#plt.title("norm satiation")
 		#plt.show()
 
-		fig_ns, ax_ns = plt.subplots()
-		ax_ns.scatter(range(norm_satiation.shape[0]), norm_satiation)
-		ax_ns.set_title(f"norm_satiation, iter:{iteration}")
-		buf_ns = io.BytesIO()
-		fig_ns.savefig(buf_ns, format='png')
-		plt.close(fig_ns)
-		buf_ns.seek(0)
-		frames_ns.append(imageio.imread(buf_ns))
+		frames_ns.append(norm_satiation.copy())
 
 		desperation = 1/(norm_satiation**2)
 
 		death_mask = norm_satiation < 1
 		will_die = death_mask.astype(int)
 
-		if(bool(will_die.sum()!=n_to_die)):
+		if(bool(will_die.sum()<n_to_die)):
 			stable_time = 0
 		else:
 			stable_time += 1
 
-		print(f"will die & n2 die: {will_die.sum()}, {n_to_die}")
-
 		still_optimizing = bool(stable_time<2)
 
-		n_to_die = will_die.sum()
+		n_to_die = min(will_die.sum(), n_to_die)
 
 		iteration+=1
-		print(f'ending opt #{iteration}')
+
+		print(f"Expected to die: {will_die.sum()} @ Iteration #{iteration}")
 
 	best_scores_over_time = []
 
-	print('opt loop completed')
+	#print('opt loop completed')
 
 	for j in range(len(p_bests_iter[0])):
 		time_best = p_bests_iter[0][j]
@@ -339,7 +325,67 @@ def optimize_constants(
 				time_best = p_bests_iter[i][j]
 		best_scores_over_time.append(time_best)
 
-	imageio.mimsave('scores.gif', frames, fps=3, loop=0)
-	imageio.mimsave('normss.gif', frames_ns, fps=3, loop=0)
+	
+	#complete norm satiation gif creation
+	norms_frames_out = []
+	ymin, ymax = 9999, -9999
+	for frame in frames_ns:
+		if(min(frame)<ymin):
+			ymin = min(frame)*0.9
+		if(max(frame)>ymax):
+			ymax = max(frame)*1.1
+	for i, frame in enumerate(frames_ns):
+		fig, ax = plt.subplots()
+		ax.set_ylim(ymin, ymax)
+		ax.scatter(range(len(frame)), frame)
+		ax.set_title(f"bests, iter: {i}")
+		buf = io.BytesIO()
+		fig.savefig(buf, format='png')
+		plt.close(fig)
+		buf.seek(0)
+		norms_frames_out.append(imageio.imread(buf))
+
+	#complete score gif creation
+	score_frames_out = []
+	ymin, ymax = 9999, -9999
+	for frame in frames:
+		if(min(frame)<ymin):
+			ymin = min(frame)*0.9
+		if(max(frame)>ymax):
+			ymax = 1.05
+	for i, frame in enumerate(frames):
+		fig, ax = plt.subplots()
+		ax.set_ylim(ymin, ymax)
+		ax.scatter(range(len(frame)), frame)
+		ax.set_title(f"bests, iter: {i}")
+		buf = io.BytesIO()
+		fig.savefig(buf, format='png')
+		plt.close(fig)
+		buf.seek(0)
+		score_frames_out.append(imageio.imread(buf))
+
+	#complete distribution gif creation
+	distr_frames_out = []
+	dist_frames = []
+	for df in range(len(frames)):
+		dist_frames.append((frames_dfig[df], frames_daxs[df]))
+	for i, (fig, axes) in enumerate(dist_frames):
+		axes[0].set_title(f"Distributions, iter: {i}")
+		buf = io.BytesIO()
+		fig.savefig(buf, format='png')
+		plt.close(fig)
+		buf.seek(0)
+		distr_frames_out.append(imageio.imread(buf))
+
+	#navigating runs folder
+	
+	best_scores_path = run_dir / 'best_scores.gif'
+	normal_satn_path = run_dir / 'normal_satn.gif'
+	featr_distr_path = run_dir / 'featr_distr.gif'
+
+	#save gifs of progress
+	imageio.mimsave(str(featr_distr_path), distr_frames_out, fps=3, loop=0)
+	imageio.mimsave(str(best_scores_path), score_frames_out, fps=3, loop=0)
+	imageio.mimsave(str(normal_satn_path), norms_frames_out, fps=3, loop=0)
 
 	return loop_forest, p_bests, best_scores_over_time
