@@ -7,6 +7,7 @@ import genetic_algorithm.utility as utility
 def reproduce(
     forest	:	list,
     scores	:	list,
+	dflt_dpth	:	int	=	None,
     MERC	:	tuple	=	(0.05, 0.05, 0.1, 0.8)
 ):
 	'''
@@ -53,10 +54,11 @@ def reproduce(
 
 	#go find average depth of the current forest
 	depths = [transforms.get_tree_depth(tree)[0]+transforms.get_tree_depth(tree)[1] for tree in forest]
-	new_depth = int(statistics.mean(depths)-statistics.stdev(depths))
+	if(dflt_dpth==None):
+		dflt_dpth = int(statistics.mean(depths)-statistics.stdev(depths))
 	
 	#make new trees and move them over to the new forest
-	new_trees = population.generate_random_forest(r_size, new_depth)
+	new_trees = population.generate_random_forest(r_size, dflt_dpth)
 	for r in range(r_size):
 		new_forest.append(new_trees[r])
 

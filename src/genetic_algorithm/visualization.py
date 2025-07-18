@@ -120,6 +120,9 @@ def visualize_regression_eval(
     y_pred_dir = y_pred >= 0
     cm = confusion_matrix(y_test_dir, y_pred_dir)
     counts = cm
+    if(np.isnan(y_test).any() or np.isnan(y_pred).any()):
+        print('nan found in y_test or y_pred, NN loss set to maximum')
+        return 0, 0
     r2 = r2_score(y_test, y_pred)
     accuracy = (cm[0, 0] + cm[1, 1]) / cm.sum()
 
@@ -163,3 +166,24 @@ def visualize_regression_eval(
         plt.show()
 
     fig.savefig(str(run_dir / f'{title}.png'))
+
+    plt.close()
+
+    return r2, accuracy
+
+def visualize_opt_path(path, title=None):
+    """
+    Plots the unit square and the path taken by the optimizer.
+    """
+    fig, ax = plt.subplots()
+    # square
+    square = np.array([[0,0],[1,0],[1,1],[0,1],[0,0]])
+    ax.plot(square[:,0], square[:,1])
+    # path
+    ax.plot(path[:,0], path[:,1], marker='o')
+    ax.set_aspect('equal')
+    ax.set_xlim(-0.1, 1.1)
+    ax.set_ylim(-0.1, 1.1)
+    if title:
+        ax.set_title(title)
+    plt.show()

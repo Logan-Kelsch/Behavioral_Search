@@ -91,4 +91,6 @@ def extract_n_best_trees(
 		plt.title('Scores of Selected Features for NN')
 		plt.savefig(str(run_dir / 'selected_feats.png'))
 
+	plt.close()
+
 	return output_forest, output_scores

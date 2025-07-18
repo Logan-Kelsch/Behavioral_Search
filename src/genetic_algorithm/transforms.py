@@ -980,7 +980,7 @@ def forest2features(
 	'''
 
 	#initiate xptr holding dynamic data parallel with population
-	xptr = np.empty((x_raw.shape[0],len(population)))
+	xptr = np.empty((x_raw.shape[0],len(population)), dtype=np.float64)
 
 	#initiate list of oplists parallel with population
 	oplists = np.empty(len(population), dtype=list)
@@ -1468,8 +1468,10 @@ def forest2features(
 				#we no longer need x_min
 				del x_min
 
+				x_denom[:, op_idx] = np.maximum(x_denom[:, op_idx], 0.0001)
+
 				#now do division operation
-				np.divide(xptr[:, op_idx], x_denom[:, op_idx], out=xptr[:, op_idx], where=(x_denom[:, op_idx] != 0))
+				np.divide(xptr[:, op_idx], x_denom[:, op_idx], out=xptr[:, op_idx])
 
 				xptr[:, op_idx][x_denom[:, op_idx] == 0] = 0.5
 

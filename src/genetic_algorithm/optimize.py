@@ -2,15 +2,21 @@
 import random
 import genetic_algorithm.evaluation as evaluation
 import genetic_algorithm.transforms as transforms	
+import genetic_algorithm.population as population
+import genetic_algorithm.optimize as optimize
 import genetic_algorithm.population as poppy
 import genetic_algorithm.utility as utility
 import genetic_algorithm.mutation as mutation
+import genetic_algorithm.reproduction as reproduction
 import genetic_algorithm.visualization as visualization
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import imageio
 import io
+import gc
 import re
 from pathlib import Path
 
@@ -28,8 +34,8 @@ def optimize_constants(
 
 	p_arr = transforms.forest2features(loop_forest, x_raw)
 
-	p_scores, p_treelist, p_scorelist = evaluation.evaluate_forest(
-		p_arr, x_raw[:, 3], n_bins=300, lag_range=(2, 4)
+	p_scores, p_treelist, p_scorelist = evaluation.evaluate_forest_newer(
+		p_arr, x_raw[:, 3], lag_range=(2, 4)
 	)
 
 	#print(p_scorelist)
@@ -389,3 +395,136 @@ def optimize_constants(
 	imageio.mimsave(str(normal_satn_path), norms_frames_out, fps=3, loop=0)
 
 	return loop_forest, p_bests, best_scores_over_time
+
+
+def optimize_reproduction(
+	init_size	:	int	=	250,
+	init_dpth	:	int	=	5,
+	step_size	:	float	=	0.1,
+	iterations:	int	=	100,
+	decay	:	float = 0.90,
+	init_x	:	tuple	=	(0.5, 0.5)
+
+):
+	import tensorflow as tf
+	
+	data = pd.read_csv("../data/ES15.csv")
+	x_raw = data.values
+
+	x = np.array(init_x, dtype=float)
+
+	dirpath = utility.fetch_new_run_dirpath()
+	iterpath = dirpath / 'iter_0'
+	iterpath.mkdir(exist_ok=True)
+
+
+	#generate population, optimize
+	best_forest = population.generate_random_forest(init_size, init_dpth)
+	best_forest, best_scores, best_overtime = optimize.optimize_constants(
+		best_forest, x_raw, sthresh_q=.15, run_dir=iterpath
+	)
+	#create starting point MERC reproduction, optimize
+	best_forest = reproduction.reproduce(best_forest, best_scores, dflt_dpth=init_dpth, MERC=merc_from_2d(x))
+	#optimize constants in forest
+	best_forest, best_scores, best_overtime = optimize.optimize_constants(
+		best_forest, x_raw, sthresh_q=.15, run_dir=iterpath
+	)
+	
+	best_loss = loss_nn(best_forest, best_scores, x_raw, iterpath)
+	print(f'init: {x}, {best_loss}')
+	path = [x.copy()]
+
+	iter = 1
+
+	for iter in range(iterations):
+		print(f'iter: {iter}')
+		iterpath = dirpath / f'iter_{iter}'
+		iterpath.mkdir(exist_ok=True)
+
+		#random direction
+		direction = np.random.randn(2)
+		direction /= np.linalg.norm(direction)
+
+		#propose new point
+		candidate = x + step_size * direction
+		candidate = np.clip(candidate, 0, 1)
+
+		#generate
+		best_forest = reproduction.reproduce(best_forest, best_scores, dflt_dpth=init_dpth, MERC=merc_from_2d(x))
+
+		#optimize constants in forest
+		best_forest, best_scores, best_overtime = optimize.optimize_constants(
+			best_forest, x_raw, sthresh_q=.15, run_dir=iterpath
+		)
+
+		#evaluate
+		loss_c = loss_nn(best_forest, best_scores, x_raw, iterpath)
+
+		if(loss_c<best_loss):
+			x = candidate
+			best_loss = loss_c
+
+		#decay step size
+		step_size *= decay
+		path.append(x.copy())
+		print(f'cndt: {candidate}, {loss_c}')
+		print(f'best: {x}, {best_loss}')
+
+
+	return x, best_loss, np.array(path)
+
+
+def merc_from_2d(
+	point
+):
+	"""
+	Given a point (x, y) in [0,1]x[0,1], returns
+	areas of triangles from each side: [bottom, right, top, left].
+	"""
+	x, y = point
+	sides = [
+		((0, 0), (1, 0)),  # bottom
+		((1, 0), (1, 1)),  # right
+		((1, 1), (0, 1)),  # top
+		((0, 1), (0, 0)),  # left
+	]
+	areas = []
+	for (x0, y0), (x1, y1) in sides:
+		cross = abs((x1 - x0)*(y - y0) - (y1 - y0)*(x - x0))
+		areas.append(cross / 2)
+	return tuple(areas)
+
+def loss_nn(
+	best_forest, best_scores, x_raw, dirpath
+):
+	import tensorflow as tf
+
+	ynew = np.roll(x_raw[:, 3], shift=-1)
+	y_ = np.log(ynew / x_raw[:, 3])
+
+	#NN feature prep
+	img = visualization.visualize_tree(best_forest[best_scores.index(min(best_scores))], run_dir=dirpath)
+	newforest , newscores = population.extract_n_best_trees(best_forest, best_scores, 16, run_dir=dirpath)
+
+	#turning forest into feature set
+	x_ = transforms.forest2features(
+		population=newforest,
+		x_raw=x_raw
+	)
+
+	#NN data prep
+	X_train, X_test, y_train, y_test = train_test_split(x_, y_, test_size=0.3, shuffle=True)
+	scaler = StandardScaler()
+	X_train = scaler.fit_transform(X_train)
+	X_test = scaler.transform(X_test)
+
+	#NN interpretation
+	model, history = evaluation.standard_NN_construction(X_train, y_train, epochs=100)
+	loss_NN = evaluation.standard_NN_evaluation(X_train, X_test, y_train, y_test, model, history, dirpath)
+
+	#memory management for long term iterative looping
+	tf.keras.backend.clear_session()
+	del model, history
+	gc.collect()
+
+	return loss_NN

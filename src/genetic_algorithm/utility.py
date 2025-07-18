@@ -159,8 +159,8 @@ def demo_constopt_nn(
 	X_test = scaler.transform(X_test)
 
 	model, history = evaluation.standard_NN_construction(X_train, y_train)
-	evaluation.standard_NN_evaluation(X_train, X_test, y_train, y_test, model, history, dirpath)
-	return best_forest, best_scores
+	score_NN = evaluation.standard_NN_evaluation(X_train, X_test, y_train, y_test, model, history, dirpath)
+	return best_forest, best_scores, score_NN
 
 
 def random_sample_n_inverse_weighted(
@@ -212,3 +212,12 @@ def random_sample_n_inverse_weighted(
 	
 	return selected_indices
 
+def safe_corr(a, b, eps=1e-8):
+	'''
+	sick and tired of getting thrown
+	zero variance errors and dont feel like making a mask or finding out how to
+	so im adding an eps and computing it myself
+	'''
+	A = a - a.mean()
+	B = b - b.mean()
+	return np.dot(A, B) / ((np.linalg.norm(A)*np.linalg.norm(B) + eps))

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
 from typing import Tuple, List, Any
-
+import genetic_algorithm.utility as utility
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -18,75 +18,87 @@ def evaluate_forest_newer(
 	close_prices: np.ndarray,
 	lag_range: Tuple[int, int] = (1, 5)
 ):
-    """
-    For each feature in `forest` and each simple threshold signal,
-    finds the lag in lag_range that maximizes the absolute
-    information coefficient with the forward-n return:
-        (price[t+lag] / price[t]) - 1
-    Returns:
-      - scores_df: DataFrame with index "feat_i_label[lag=k]" and column "ic"
-      - feature_idx_list: unique feature indices in the order they first appear
-      - eval_score_list: corresponding IC values (nan→0) for each feature index
-    """
-    # 1) price series
-    price = pd.Series(close_prices)
+	"""
+	For each feature in `forest` and each simple threshold signal,
+	finds the lag in lag_range that maximizes the absolute
+	information coefficient with the forward-n return:
+		(price[t+lag] / price[t]) - 1
+	Returns:
+	  - scores_df: DataFrame with index "feat_i_label[lag=k]" and column "ic"
+	  - feature_idx_list: unique feature indices in the order they first appear
+	  - eval_score_list: corresponding IC values (nan→0) for each feature index
+	"""
+	# 1) price series
+	price = pd.Series(close_prices)
 
-    # 2) unpack lags
-    min_lag, max_lag = lag_range
+	# 2) unpack lags
+	min_lag, max_lag = lag_range
 
-    # 3) precompute forward-n returns for each lag
-    forward_returns = {
-        lag: (price.shift(-lag) / price - 1).fillna(0)
-        for lag in range(min_lag, max_lag + 1)
-    }
+	# 3) precompute forward-n returns for each lag
+	forward_returns = {
+		lag: (price.shift(-lag) / price - 1).fillna(0)
+		for lag in range(min_lag, max_lag + 1)
+	}
 
-    # 4) prepare features
-    feature_names = [f"feat_{i}" for i in range(forest.shape[1])]
-    df_feats = pd.DataFrame(forest, columns=feature_names).fillna(0)
+	# 4) prepare features
+	feature_names = [f"feat_{i}" for i in range(forest.shape[1])]
+	df_feats = pd.DataFrame(forest, columns=feature_names).fillna(0)
 
-    # 5) compute best‐lag IC for every feature+signal
-    ic_scores = {}
-    for col in feature_names:
-        feat = df_feats[col]
+	# 5) compute best‐lag IC for every feature+signal
+	ic_scores = {}
+	for col in feature_names:
+		feat = df_feats[col]
 
-        signals = {
-            '>mean': (feat > feat.mean()).astype(int),
-            '<mean': (feat < feat.mean()).astype(int),
-            '>0':    (feat > 0).astype(int),
-            '<0':    (feat < 0).astype(int),
-        }
+		signals = {
+			'>mean': (feat > feat.mean()).astype(int),
+			'<mean': (feat < feat.mean()).astype(int),
+			'>0':    (feat > 0).astype(int),
+			'<0':    (feat < 0).astype(int),
+			'raw':	 (feat).astype(np.float32)
+		}
 
-        for label, sig in signals.items():
-            best_ic = None
-            best_lag = None
+		for label, sig in signals.items():
+			best_ic = None
+			best_lag = None
 
-            for lag, ret in forward_returns.items():
-                ic = sig.corr(ret)
-                if best_ic is None or abs(ic) > abs(best_ic):
-                    best_ic = ic
-                    best_lag = lag
+			for lag, ret in forward_returns.items():
+				#print(f'LOGIC CHECK PRINTOUT LOGIC CHECK PRINTOUT')
+				#print(np.isnan(sig).any(), np.isinf(sig).any())
+				#print(np.isnan(ret).any(), np.isinf(ret).any())
+				#print(np.nanstd(sig), np.nanstd(ret))
 
-            key = f"{col}_{label}[lag={best_lag}]"
-            ic_scores[key] = best_ic
+				#ic = sig.corr(ret)
+				
+				ic = utility.safe_corr(sig, ret)
+				
+				if best_ic is None or abs(ic) > abs(best_ic):
+					best_ic = ic
+					best_lag = lag
 
-    # 6) build scores_df
-    scores_df = pd.Series(ic_scores, name='ic').to_frame()
+			key = f"{col}_{label}[lag={best_lag}]"
+			ic_scores[key] = best_ic
 
-    # 7) unique feature index list + eval_score_list
-    feature_idx_list = []
-    eval_score_list  = []
-    for key in scores_df.index:
-        ic_val = scores_df.loc[key, 'ic']
-        idx = int(key.split('_')[1])
-        if idx not in feature_idx_list:
-            feature_idx_list.append(idx)
-            eval_score_list.append(0 if np.isnan(ic_val) else ic_val)
+	# 6) build scores_df
+	scores_df = pd.Series(ic_scores, name='ic').to_frame()
 
-    return scores_df, feature_idx_list, eval_score_list
+	# 7) unique feature index list + eval_score_list
+	feature_idx_list = []
+	eval_score_list  = []
+	for key in scores_df.index:
+		ic_val = scores_df.loc[key, 'ic']
+		idx = int(key.split('_')[1])
+		#print(f'idx: {idx}')
+		if idx not in feature_idx_list:
+			feature_idx_list.append(idx)
+			if(np.isnan(ic_val)):
+				print('NAN IC FOUND NAN IC FOUND!!!')
+			eval_score_list.append(0 if np.isnan(ic_val) else ic_val)
+
+	return scores_df, feature_idx_list, eval_score_list
 
 
 
-
+'''
 def evaluate_forest(
 	forest: np.ndarray,
 	close_prices: np.ndarray,
@@ -108,6 +120,7 @@ def evaluate_forest(
 	- scores_df: DataFrame of metrics (ic, profit, r2, infrequency, lnpl, combined)
 	- feature_idx_list: unique list of feature indices sorted by combined score
 	"""
+	print('ENTERING WRONG FUNCTION!!!!!!')
 	# 1) compute returns and market curve
 	returns = pd.Series(close_prices).pct_change().fillna(0)
 	market_cum = returns.cumsum()
@@ -169,6 +182,10 @@ def evaluate_forest(
 			cum_pnl_dict[key] = cum_pnl
 
 			#information Coefficient
+			print(returns_lagged.keys())
+			for lag in returns_lagged:
+				print(lag)
+				print(returns_lagged[lag].corr(feat))
 			ic = max(abs(returns_lagged[lag].corr(feat)) for lag in returns_lagged)
 
 			total_profit = raw_pnl.sum()
@@ -257,7 +274,7 @@ def evaluate_forest(
 		plt.show()
 
 	return scores_df, feature_idx_list, eval_score_list
-
+'''
 
 
 
@@ -294,12 +311,12 @@ def get_best_forest(
 
 	return best_forest, best_scores
 
-import tensorflow as tf
+
 from keras.callbacks import EarlyStopping
 import matplotlib.pyplot as plt
 
-def standard_NN_construction(X_train, y_train):
-
+def standard_NN_construction(X_train, y_train, epochs=250):
+	import tensorflow as tf
 	from keras.optimizers.schedules import ExponentialDecay
 
 	reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
@@ -329,13 +346,10 @@ def standard_NN_construction(X_train, y_train):
 		model.compile(optimizer=opt2, loss='mse', metrics=['R2Score'])
 		return model
 
-
-	epochs = 250
-
 	with tf.device('/GPU:0'):
 		model = build_model()
 		history = model.fit(X_train, y_train, epochs=epochs, batch_size=256, \
-						validation_split=0.2, verbose=1, shuffle=False, callbacks=[reduce_lr, early_stopping])
+						validation_split=0.2, verbose=0, shuffle=False, callbacks=[reduce_lr, early_stopping])
 		
 	return model, history
 
@@ -350,8 +364,8 @@ def standard_NN_evaluation(
 	y_pred = model.predict(X_test)
 	y_pred_train = model.predict(X_train)
 
-	visualization.visualize_regression_eval(y_test=y_train, y_pred=y_pred_train, title='Self Test', run_dir=run_dir)
-	visualization.visualize_regression_eval(y_test=y_test, y_pred=y_pred, title='Independent Test', run_dir=run_dir)
+	self_r2, self_qacc = visualization.visualize_regression_eval(y_test=y_train, y_pred=y_pred_train, title='Self Test', run_dir=run_dir)
+	ind_r2, ind_qacc = visualization.visualize_regression_eval(y_test=y_test, y_pred=y_pred, title='Independent Test', run_dir=run_dir)
 
 	loss = history.history['loss'][1:]
 	val_loss = history.history.get('val_loss', [])[1:]
@@ -387,3 +401,9 @@ def standard_NN_evaluation(
 	#plt.show()
 	plt.tight_layout()
 	fig.savefig(str(run_dir / 'training.png'))
+
+	plt.close()
+
+	loss_NN = 1 - (np.clip(self_r2 * np.sqrt(self_qacc), 0, 1) * np.clip(np.sign(ind_r2)*(ind_r2 * np.sqrt(ind_qacc))**2, 0, 1))
+
+	return loss_NN
