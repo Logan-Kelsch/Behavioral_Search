@@ -37,7 +37,7 @@ import random
 import copy
 from collections import deque
 from dataclasses import dataclass, field
-import genetic_algorithm.utility as utility
+#import genetic_algorithm.utility as utility
 
 
 ## NOTE BEGIN TRANSFORMATION FUNCTIONS NOTE ##
@@ -742,6 +742,22 @@ class T_node:
 
 		else:
 			return []
+		
+	def replace(
+		self,
+		new
+	):
+		'''
+		
+		'''
+		self._type	= new._type
+		self._x		= new._x
+		self._kappa = new._kappa
+		self._alpha = new._alpha
+		self._delta = new._delta
+		self._delta2= new._delta2
+		return self
+
 
 	def get_rrf(
 		self
@@ -773,6 +789,11 @@ class T_node:
 			lcl_cnt += self._alpha.get_depth()
 
 		return lcl_cnt
+	
+	def copy(
+		self
+	):
+		return copy.deepcopy(self)
 
 	@property
 	def alpha(self):
@@ -836,6 +857,36 @@ def get_tree_depth(
 
 	return depths
 
+def get_random_node(
+	tree	:	T_node
+):
+	lcl_depths = get_tree_depth(tree)
+	m_locs = lcl_depths[0] + lcl_depths[1]
+
+	if(m_locs!=0):
+		m_where:int = np.random.randint(low=0,high=m_locs)
+	else:
+		m_where:int = 0
+
+	ptr = tree
+	while(m_where>0):
+		m_where-=1
+
+		lcl_depths = get_tree_depth(ptr)
+		m_locs = lcl_depths[0] + lcl_depths[1]
+
+		go_to = np.random.rand()
+
+		alpha_ratio = lcl_depths[1] / (lcl_depths[0]+lcl_depths[1])
+
+		if(go_to <= alpha_ratio):
+			ptr = ptr._alpha
+			m_where -= lcl_depths[0]
+		else:
+			ptr = ptr._x
+			m_where -= lcl_depths[1]
+
+	return ptr
 
 def get_oplist(
 	root	:	T_node
@@ -913,6 +964,7 @@ def forest2features(
 	population	:	list,
 	x_raw		:	np.ndarray
 )	-> np.ndarray:
+	import genetic_algorithm.utility as utility
 	
 	'''
 	### info:

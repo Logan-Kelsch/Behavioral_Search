@@ -3,9 +3,6 @@ from IPython.display import Image
 import numpy as np
 import matplotlib.pyplot as plt
 
-import pydot
-from IPython.display import Image
-
 def visualize_tree(root, run_dir:str=None):
     """
     Visualize a binary tree with children `._x` and `._alpha` using pydot.

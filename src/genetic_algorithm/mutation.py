@@ -1,7 +1,3 @@
-'''
-
-'''
-
 import genetic_algorithm.transforms as transforms
 import genetic_algorithm.population as population
 import genetic_algorithm.evaluation as evaluation

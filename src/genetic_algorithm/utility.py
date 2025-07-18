@@ -1,6 +1,14 @@
-from functools import lru_cache
 from typing import List, Any, Tuple
 import numpy as np
+import genetic_algorithm.population as population
+
+import genetic_algorithm.optimize as optimize
+import genetic_algorithm.utility as utility
+import pandas as pd
+import genetic_algorithm.visualization as visualization
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+import genetic_algorithm.evaluation as evaluation
 
 
 
@@ -115,26 +123,20 @@ def fetch_new_run_dirpath():
 	return new_run_dir
 
 
-import genetic_algorithm.population as population
-import genetic_algorithm.transforms as transforms
-import genetic_algorithm.optimize as optimize
-import genetic_algorithm.utility as utility
-import pandas as pd
-import numpy as np
-import genetic_algorithm.visualization as visualization
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-import genetic_algorithm.evaluation as evaluation
-
-def demo_constopt_nn():
+def demo_constopt_nn(
+	pop	=	None
+):
+	import genetic_algorithm.transforms as transforms
 	data = pd.read_csv("../data/ES15.csv")
 	x_raw = data.values
 
 	dirpath = utility.fetch_new_run_dirpath()
 
-	pop = population.generate_random_forest(250, 12)
+	if(pop==None):
+		pop = population.generate_random_forest(200, 5)
 
 	np.seterr(all='ignore')
+
 	best_forest, best_scores, best_overtime = optimize.optimize_constants(
 		pop, x_raw, sthresh_q=.1, run_dir=dirpath
 	)
@@ -158,3 +160,55 @@ def demo_constopt_nn():
 
 	model, history = evaluation.standard_NN_construction(X_train, y_train)
 	evaluation.standard_NN_evaluation(X_train, X_test, y_train, y_test, model, history, dirpath)
+	return best_forest, best_scores
+
+
+def random_sample_n_inverse_weighted(
+	scores	:	list,
+	n		:	int,
+	let_dupe:	bool	=	True
+):
+	'''
+	This function returns the indices of selected items.
+	items are selected at random after assigning weights based on inverse scores.
+	'''
+
+	selected_indices = []
+
+	raw_scores = scores.copy()
+	raw_scores_rnd = [round(x, 8) for x in raw_scores]
+	inv_scores = [1/x for x in raw_scores]
+	
+	wscore_vol = 0
+	for invs in inv_scores:
+		wscore_vol+=invs
+
+	for iter in range(n):
+		randval = np.random.uniform(low=0, high=wscore_vol)
+
+		sorted_inv_scores = sorted(inv_scores, reverse=True)
+
+		if(let_dupe == False):
+			for i in range(iter):
+				randval -= sorted_inv_scores[i]
+
+			search_idx = iter
+		else:
+			search_idx = 0
+
+		while(randval>sorted_inv_scores[search_idx]):
+
+			randval -= sorted_inv_scores[search_idx]
+			search_idx+=1
+		
+		selected_indices.append(
+			raw_scores_rnd.index(
+				round(1/sorted_inv_scores[search_idx], 8)
+			)
+		)
+
+	if(len(selected_indices)!=n):
+		raise ValueError(f"why does # selected indices not equal n?")
+	
+	return selected_indices
+

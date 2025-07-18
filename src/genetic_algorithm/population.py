@@ -1,5 +1,6 @@
-from genetic_algorithm.transforms import *
+import genetic_algorithm.transforms as transforms
 from typing import Literal
+import numpy as np
 
 def generate_random_forest(
 	size	:	int	=	100,
@@ -8,7 +9,7 @@ def generate_random_forest(
 	population = []
 
 	for i in range(size):
-		new_tree = T_node(random=True)
+		new_tree = transforms.T_node(random=True)
 		for mutation in range(init_m):
 			new_tree.mutate_tree()
 		population.append(new_tree)
@@ -47,7 +48,7 @@ def oplist2forests(
 			#print(f'oplist to tree on: {int((b)*batch_size)+i}')
 
 			#b+1 skips all already evaluated trees
-			new_tree = oplist2tree(oplists[int((b)*batch_size)+i])
+			new_tree = transforms.oplist2tree(oplists[int((b)*batch_size)+i])
 			forest_batches[b].append(new_tree)
 
 			prll_idx_batches[b].append(prll_idx[int((b)*batch_size)+i])
