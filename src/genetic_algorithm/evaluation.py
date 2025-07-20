@@ -4,13 +4,14 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
 from typing import Tuple, List, Any
-import genetic_algorithm.utility as utility
+import utility as utility
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
 from typing import Tuple, List, Any
+import visualization as visualization
 
 
 def evaluate_forest_newer(
@@ -353,13 +354,12 @@ def standard_NN_construction(X_train, y_train, epochs=250):
 		
 	return model, history
 
-import genetic_algorithm.visualization as visualization
-
 def standard_NN_evaluation(
 	X_train,X_test,y_train,y_test,
 	model,
 	history,
-	run_dir
+	run_dir,
+	vizout
 ):
 	y_pred = model.predict(X_test)
 	y_pred_train = model.predict(X_train)
@@ -400,10 +400,14 @@ def standard_NN_evaluation(
 	#plt.tight_layout()
 	#plt.show()
 	plt.tight_layout()
-	fig.savefig(str(run_dir / 'training.png'))
+
+	if(vizout):
+		fig.savefig(str(run_dir / 'training.png'))
 
 	plt.close()
 
 	loss_NN = 1 - (np.clip(self_r2 * np.sqrt(self_qacc), 0, 1) * np.clip(np.sign(ind_r2)*(ind_r2 * np.sqrt(ind_qacc))**2, 0, 1))
+
+	del fig, ax1, ax2
 
 	return loss_NN

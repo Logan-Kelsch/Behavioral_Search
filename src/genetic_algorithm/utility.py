@@ -1,14 +1,14 @@
 from typing import List, Any, Tuple
 import numpy as np
-import genetic_algorithm.population as population
+import population as population
 
-import genetic_algorithm.optimize as optimize
-import genetic_algorithm.utility as utility
+import optimize as optimize
+import utility as utility
 import pandas as pd
-import genetic_algorithm.visualization as visualization
+import visualization as visualization
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-import genetic_algorithm.evaluation as evaluation
+import evaluation as evaluation
 
 
 
@@ -102,13 +102,11 @@ def pinder_resize(
 			  f"val:{val},pinder:{pinder},space:{space}")
 	
 	return over, under
-
-
 import re
 from pathlib import Path
 
 def fetch_new_run_dirpath():
-	runs_dir = Path('../runs')
+	runs_dir = Path('../../runs')
 	runs_dir.mkdir(exist_ok=True)
 	pattern = re.compile(r'run_(\d+)$')
 	run_nums = []

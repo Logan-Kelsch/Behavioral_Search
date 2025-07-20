@@ -964,7 +964,7 @@ def forest2features(
 	population	:	list,
 	x_raw		:	np.ndarray
 )	-> np.ndarray:
-	import genetic_algorithm.utility as utility
+	import utility as utility
 	
 	'''
 	### info:
@@ -1471,7 +1471,7 @@ def forest2features(
 				x_denom[:, op_idx] = np.maximum(x_denom[:, op_idx], 0.0001)
 
 				#now do division operation
-				np.divide(xptr[:, op_idx], x_denom[:, op_idx], out=xptr[:, op_idx])
+				np.divide(xptr[:, op_idx], x_denom[:, op_idx], out=xptr[:, op_idx], where=(x_denom[:, op_idx]!=0))
 
 				xptr[:, op_idx][x_denom[:, op_idx] == 0] = 0.5
 

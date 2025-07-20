@@ -1,24 +1,24 @@
-
+import log as logs
+import matplotlib.pyplot as plt
+from typing import Literal
 import random
-import genetic_algorithm.evaluation as evaluation
-import genetic_algorithm.transforms as transforms	
-import genetic_algorithm.population as population
-import genetic_algorithm.optimize as optimize
-import genetic_algorithm.population as poppy
-import genetic_algorithm.utility as utility
-import genetic_algorithm.mutation as mutation
-import genetic_algorithm.reproduction as reproduction
-import genetic_algorithm.visualization as visualization
+import evaluation as evaluation
+import transforms as transforms	
+import population as population
+import optimize as optimize
+import population as poppy
+import utility as utility
+import mutation as mutation
+import reproduction as reproduction
+import visualization as visualization
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
+
 import numpy as np
 import pandas as pd
 import imageio
 import io
 import gc
-import re
-from pathlib import Path
 
 def optimize_constants(
 	population  :   list,
@@ -26,7 +26,8 @@ def optimize_constants(
 	sthresh_q	:	float	=	0.25,
 	max_iter    :   int     =   -1,
 	dyn_sthresh :   bool    =   True,
-	run_dir		:	str		=	None
+	run_dir		:	str		=	None,
+	vizout		:	bool	=	True
 ):
 	assert run_dir!=None, 'Must assert a run directory to track progress.'
 	
@@ -318,7 +319,11 @@ def optimize_constants(
 
 		iteration+=1
 
-		print(f"Expected to die: {will_die.sum()} @ Iteration #{iteration}")
+		#print(f"Expected to die: {will_die.sum()} @ Iteration #{iteration}")
+
+		if(max_iter>-1):
+			if(iteration>=max_iter):
+				break
 
 	best_scores_over_time = []
 
@@ -389,57 +394,100 @@ def optimize_constants(
 	normal_satn_path = run_dir / 'normal_satn.gif'
 	featr_distr_path = run_dir / 'featr_distr.gif'
 
-	#save gifs of progress
-	imageio.mimsave(str(featr_distr_path), distr_frames_out, fps=3, loop=0)
-	imageio.mimsave(str(best_scores_path), score_frames_out, fps=3, loop=0)
-	imageio.mimsave(str(normal_satn_path), norms_frames_out, fps=3, loop=0)
+	if(vizout):
+		#save gifs of progress
+		imageio.mimsave(str(featr_distr_path), distr_frames_out, fps=3, loop=0)
+		imageio.mimsave(str(best_scores_path), score_frames_out, fps=3, loop=0)
+		imageio.mimsave(str(normal_satn_path), norms_frames_out, fps=3, loop=0)
+
+	del forfeat_batches, forest_batches
+	del buf, fig, ax, axes, frames, frames_daxs, frames_dfig, frames_ns, dist_frames, distr_frames_out, norms_frames_out, score_frames_out
+	
+	gc.collect()
 
 	return loop_forest, p_bests, best_scores_over_time
 
 
 def optimize_reproduction(
-	init_size	:	int	=	250,
-	init_dpth	:	int	=	5,
+	init_size	:	int	=	64,
+	init_dpth	:	int	=	3,
 	step_size	:	float	=	0.1,
+	epochs		:	int	=	50,
 	iterations:	int	=	100,
+	init_x	:	tuple	=	(0.5, 0.5),
+	dcay_mode	:	Literal['decay','performance']	=	'performance',
+	step_mode	:	Literal['best','good']	=	'good',
 	decay	:	float = 0.90,
-	init_x	:	tuple	=	(0.5, 0.5)
-
+	viz_mode	:	Literal['full','path']	=	'path',
+	copt_iter	:	int	=	1
 ):
 	import tensorflow as tf
+	np.seterr(all='warn')
+
+	logs.report_deep_globals()
 	
-	data = pd.read_csv("../data/ES15.csv")
-	x_raw = data.values
+	data = pd.read_csv("../../data/ES15.csv")
+
+	x_raw = data.values.copy()
+
+	del data
+
+	match(viz_mode):
+		case 'full':
+			vizout=True
+			iterpath = dirpath / 'iter_0'
+			iterpath.mkdir(exist_ok=True)
+		case 'path':
+			vizout=False
+			iterpath = dirpath
 
 	x = np.array(init_x, dtype=float)
 
 	dirpath = utility.fetch_new_run_dirpath()
-	iterpath = dirpath / 'iter_0'
-	iterpath.mkdir(exist_ok=True)
 
 
 	#generate population, optimize
 	best_forest = population.generate_random_forest(init_size, init_dpth)
 	best_forest, best_scores, best_overtime = optimize.optimize_constants(
-		best_forest, x_raw, sthresh_q=.15, run_dir=iterpath
+		best_forest, x_raw, sthresh_q=.15, run_dir=iterpath, vizout=vizout, max_iter=copt_iter
 	)
 	#create starting point MERC reproduction, optimize
 	best_forest = reproduction.reproduce(best_forest, best_scores, dflt_dpth=init_dpth, MERC=merc_from_2d(x))
 	#optimize constants in forest
 	best_forest, best_scores, best_overtime = optimize.optimize_constants(
-		best_forest, x_raw, sthresh_q=.15, run_dir=iterpath
+		best_forest, x_raw, sthresh_q=.15, run_dir=iterpath, vizout=vizout, max_iter=copt_iter
 	)
 	
-	best_loss = loss_nn(best_forest, best_scores, x_raw, iterpath)
+	best_loss = loss_nn(best_forest=best_forest, best_scores=best_scores, epochs=epochs, x_raw=x_raw, dirpath=iterpath, vizout=vizout)
+	loss_c = best_loss
+
 	print(f'init: {x}, {best_loss}')
+	pscr = [best_loss]
 	path = [x.copy()]
+
+	if(dcay_mode == 'decay'):
+		step_size /= decay
 
 	iter = 1
 
 	for iter in range(iterations):
 		print(f'iter: {iter}')
-		iterpath = dirpath / f'iter_{iter}'
-		iterpath.mkdir(exist_ok=True)
+		match(viz_mode):
+			case 'full':
+				iterpath = dirpath / f'iter_{iter}'
+				iterpath.mkdir(exist_ok=True)
+			case 'path':
+				#the path to file saving does not need to change
+				pass
+
+		#update step size
+		if(dcay_mode == 'decay'):
+			step_size *= decay
+		elif(dcay_mode == 'performance'):
+			#step size here operates initially at 0.3 with domain of (0, 0.25)
+			#and indef decay of size upon assumed continuous minima (local or global) finding
+			step_size = ( (sorted(pscr).index(loss_c) + 0.1) / len(pscr) * 0.25)
+
 
 		#random direction
 		direction = np.random.randn(2)
@@ -454,24 +502,39 @@ def optimize_reproduction(
 
 		#optimize constants in forest
 		best_forest, best_scores, best_overtime = optimize.optimize_constants(
-			best_forest, x_raw, sthresh_q=.15, run_dir=iterpath
+			best_forest, x_raw, sthresh_q=.15, run_dir=iterpath, vizout=vizout, max_iter=copt_iter
 		)
 
 		#evaluate
-		loss_c = loss_nn(best_forest, best_scores, x_raw, iterpath)
+		loss_c = loss_nn(best_forest=best_forest, best_scores=best_scores, epochs=epochs, x_raw=x_raw, dirpath=iterpath, vizout=vizout)
 
-		if(loss_c<best_loss):
-			x = candidate
-			best_loss = loss_c
+		if(step_mode == 'best'):
 
-		#decay step size
-		step_size *= decay
-		path.append(x.copy())
+			if(loss_c<best_loss):
+				x = candidate
+				best_loss = loss_c
+
+		elif(step_mode == 'good'):
+
+			#for a step to be taken under 'good' step mode
+			#requires that the candidate position scores with in the top
+			#quarter of all scores collected this far
+			if(loss_c <= ( sorted(pscr)[int(len(pscr)/4)] )):
+				x = candidate
+				best_loss = loss_c
+
+		
+		path.append(candidate.copy())
+		pscr.append(loss_c)
 		print(f'cndt: {candidate}, {loss_c}')
-		print(f'best: {x}, {best_loss}')
+		print(f'crnt: {x}, {best_loss}')
+
+		visualization.visualize_opt_path(np.array(path), np.array(pscr), title=f'iter: #{iter} path', dirpath=iterpath)
+
+		logs.report_deep_locals()
 
 
-	return x, best_loss, np.array(path)
+	return x, best_loss, np.array(path), np.array(pscr)
 
 
 def merc_from_2d(
@@ -495,7 +558,7 @@ def merc_from_2d(
 	return tuple(areas)
 
 def loss_nn(
-	best_forest, best_scores, x_raw, dirpath
+	best_forest, best_scores, epochs, x_raw, dirpath, vizout
 ):
 	import tensorflow as tf
 
@@ -519,12 +582,17 @@ def loss_nn(
 	X_test = scaler.transform(X_test)
 
 	#NN interpretation
-	model, history = evaluation.standard_NN_construction(X_train, y_train, epochs=100)
-	loss_NN = evaluation.standard_NN_evaluation(X_train, X_test, y_train, y_test, model, history, dirpath)
+	model, history = evaluation.standard_NN_construction(X_train, y_train, epochs=epochs)
+	loss_NN = evaluation.standard_NN_evaluation(X_train, X_test, y_train, y_test, model, history, dirpath, vizout=vizout)
 
 	#memory management for long term iterative looping
 	tf.keras.backend.clear_session()
 	del model, history
+	del X_train, X_test, y_train, y_test, x_
 	gc.collect()
 
 	return loss_NN
+
+if __name__ == "__main__":
+	print("running...")
+	optimize_reproduction()

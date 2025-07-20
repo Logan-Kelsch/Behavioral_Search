@@ -1,4 +1,4 @@
-import genetic_algorithm.transforms as transforms
+import transforms as transforms
 from typing import Literal
 import numpy as np
 
@@ -63,7 +63,8 @@ def extract_n_best_trees(
 	forest	:	list,
 	scores	:	list,
 	n		:	int,
-	run_dir	:	str	=	''
+	run_dir	:	str	=	'',
+	vizout	:	bool	=	False
 ):
 	wf = forest.copy()
 	ws = scores.copy()
@@ -86,7 +87,7 @@ def extract_n_best_trees(
 		wf.pop(best_idx)
 		ws.pop(best_idx)
 
-	if(run_dir!=''):
+	if(vizout):
 		plt.scatter(range(len(output_scores)), output_scores)
 		plt.title('Scores of Selected Features for NN')
 		plt.savefig(str(run_dir / 'selected_feats.png'))

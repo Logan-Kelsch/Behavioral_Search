@@ -3,7 +3,7 @@ from IPython.display import Image
 import numpy as np
 import matplotlib.pyplot as plt
 
-def visualize_tree(root, run_dir:str=None):
+def visualize_tree(root, vizout, run_dir:str=None):
     """
     Visualize a binary tree with children `._x` and `._alpha` using pydot.
     Non-leaf nodes are deduplicated (cached), while each leaf instance
@@ -51,11 +51,13 @@ def visualize_tree(root, run_dir:str=None):
 
     recurse(root)
     
-    if(run_dir!=None):
+    if(vizout):
         graph.write_png(str(run_dir / 'best_tree.png'))
+        del graph
         return Image(str(run_dir / 'best_tree.png'))
     else:
         graph.write_png('best_tree.png')
+        del graph
         return Image('best_tree.png')
 
 
@@ -114,7 +116,8 @@ def visualize_regression_eval(
     plot_lims   :   float   =   0.015,
     title       :   str     =   'Scatter with Quadrant Counts',
     show        :   bool    =   False,
-    run_dir     :   str     =   '.'
+    run_dir     :   str     =   '.',
+    vizout      :   bool    =   False
 ):
     y_test_dir = y_test >= 0
     y_pred_dir = y_pred >= 0
@@ -165,25 +168,57 @@ def visualize_regression_eval(
         plt.tight_layout()
         plt.show()
 
-    fig.savefig(str(run_dir / f'{title}.png'))
+    if(vizout):
+        fig.savefig(str(run_dir / f'{title}.png'))
 
     plt.close()
+    
+    del fig, cbar, ax
 
     return r2, accuracy
 
-def visualize_opt_path(path, title=None):
+import numpy as np
+import matplotlib.pyplot as plt
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+
+def visualize_opt_path(path, pscores, title=None, dirpath=None):
     """
     Plots the unit square and the path taken by the optimizer.
+    - path: list of (x, y) tuples or Nx2 array-like of positions
+    - pscores: list/array of scores (0 best → 1 worst), same length as path
     """
+
+    maroon_cmap = LinearSegmentedColormap.from_list(
+        'maroon', ["#0099FF", "#87878782", "#DB0000"]
+    )
     fig, ax = plt.subplots()
-    # square
+    # Draw square boundary
     square = np.array([[0,0],[1,0],[1,1],[0,1],[0,0]])
-    ax.plot(square[:,0], square[:,1])
-    # path
-    ax.plot(path[:,0], path[:,1], marker='o')
+    ax.plot(square[:,0], square[:,1], linewidth=1, color='black')
+    
+    # Convert inputs to arrays
+    positions = np.array(path)
+    scores = np.array(pscores)
+    
+    # Faint gray line connecting the steps
+    ax.plot(positions[:,0], positions[:,1], color='gray', alpha=0.3, linewidth=1, zorder=1)
+    
+    # Color-coded scatter
+    scatter = ax.scatter(positions[:,0], positions[:,1], c=scores, cmap=maroon_cmap, zorder=2)
+    plt.colorbar(scatter, ax=ax, label='Score')
+    
+    # Styling
     ax.set_aspect('equal')
-    ax.set_xlim(-0.1, 1.1)
-    ax.set_ylim(-0.1, 1.1)
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_ylim(-0.05, 1.05)
     if title:
         ax.set_title(title)
-    plt.show()
+    
+    plt.savefig(str(dirpath / f'{title}.png'))
+
+    plt.close()
+    del ax, fig
+

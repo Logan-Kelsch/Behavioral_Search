@@ -1,8 +1,8 @@
-import genetic_algorithm.transforms as transforms
-import genetic_algorithm.population as population
+import transforms as transforms
+import population as population
 import math
 import statistics
-import genetic_algorithm.utility as utility
+import utility as utility
 
 def reproduce(
     forest	:	list,

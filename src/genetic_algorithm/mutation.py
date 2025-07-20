@@ -1,8 +1,8 @@
-import genetic_algorithm.transforms as transforms
-import genetic_algorithm.population as population
-import genetic_algorithm.evaluation as evaluation
-import genetic_algorithm.visualization as visualization
-import genetic_algorithm.utility as utility
+import transforms as transforms
+import population as population
+import evaluation as evaluation
+import visualization as visualization
+import utility as utility
 
 import random
 import copy
