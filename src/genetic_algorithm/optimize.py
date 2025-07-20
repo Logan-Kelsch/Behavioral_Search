@@ -409,11 +409,12 @@ def optimize_constants(
 
 
 def optimize_reproduction(
-	init_size	:	int	=	64,
+	init_size	:	int	=	128,
 	init_dpth	:	int	=	3,
 	step_size	:	float	=	0.1,
 	epochs		:	int	=	50,
-	iterations:	int	=	100,
+	pop_mode	:	Literal['new','rec']	=	'rec',
+	iterations:	int	=	500,
 	init_x	:	tuple	=	(0.5, 0.5),
 	dcay_mode	:	Literal['decay','performance']	=	'performance',
 	step_mode	:	Literal['best','good']	=	'good',
@@ -422,7 +423,7 @@ def optimize_reproduction(
 	copt_iter	:	int	=	1
 ):
 	import tensorflow as tf
-	np.seterr(all='warn')
+	np.seterr(all='ignore')
 
 	logs.report_deep_globals()
 	
@@ -486,7 +487,7 @@ def optimize_reproduction(
 		elif(dcay_mode == 'performance'):
 			#step size here operates initially at 0.3 with domain of (0, 0.25)
 			#and indef decay of size upon assumed continuous minima (local or global) finding
-			step_size = ( (sorted(pscr).index(loss_c) + 0.1) / len(pscr) * 0.25)
+			step_size = ( (sorted(pscr).index(loss_c) + 1) / len(pscr) * 0.25)
 
 
 		#random direction
@@ -496,6 +497,13 @@ def optimize_reproduction(
 		#propose new point
 		candidate = x + step_size * direction
 		candidate = np.clip(candidate, 0, 1)
+
+		if(pop_mode=='new'):
+			#generate population, optimize
+			best_forest = population.generate_random_forest(init_size, init_dpth)
+			best_forest, best_scores, best_overtime = optimize.optimize_constants(
+				best_forest, x_raw, sthresh_q=.15, run_dir=iterpath, vizout=vizout, max_iter=copt_iter
+			)
 
 		#generate
 		best_forest = reproduction.reproduce(best_forest, best_scores, dflt_dpth=init_dpth, MERC=merc_from_2d(x))
@@ -566,8 +574,8 @@ def loss_nn(
 	y_ = np.log(ynew / x_raw[:, 3])
 
 	#NN feature prep
-	img = visualization.visualize_tree(best_forest[best_scores.index(min(best_scores))], run_dir=dirpath)
-	newforest , newscores = population.extract_n_best_trees(best_forest, best_scores, 16, run_dir=dirpath)
+	img = visualization.visualize_tree(best_forest[best_scores.index(min(best_scores))], run_dir=dirpath, vizout=vizout)
+	newforest , newscores = population.extract_n_best_trees(best_forest, best_scores, 16, run_dir=dirpath, vizout=vizout)
 
 	#turning forest into feature set
 	x_ = transforms.forest2features(
@@ -596,3 +604,4 @@ def loss_nn(
 if __name__ == "__main__":
 	print("running...")
 	optimize_reproduction()
+	optimize_reproduction(pop_mode='new')
