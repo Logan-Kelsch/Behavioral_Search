@@ -18,8 +18,8 @@ def reproduce(
 	size = len(forest)
 	m_size = math.floor(size*MERC[0])
 	e_size = math.floor(size*MERC[1])
-	r_size = math.floor(size*MERC[2])
-	c_size = size - m_size - e_size - r_size
+	c_size = math.floor(size*MERC[3])
+	r_size = size - m_size - e_size - c_size
 
 	new_forest = []
 
@@ -49,19 +49,6 @@ def reproduce(
 		new_tree:transforms.T_node = forest[e].copy()
 		new_forest.append(new_tree)
 
-	#third section is we select our R
-	#R is random
-
-	#go find average depth of the current forest
-	depths = [transforms.get_tree_depth(tree)[0]+transforms.get_tree_depth(tree)[1] for tree in forest]
-	if(dflt_dpth==None):
-		dflt_dpth = int(statistics.mean(depths)-statistics.stdev(depths))
-	
-	#make new trees and move them over to the new forest
-	new_trees = population.generate_random_forest(r_size, dflt_dpth)
-	for r in range(r_size):
-		new_forest.append(new_trees[r])
-
 	#third section is we select our C
 	#C is crossover (branch swapping)
 
@@ -85,5 +72,18 @@ def reproduce(
 		female_ptr.replace(new_branch)
 
 		new_forest.append(new_tree)
+
+	#fourth section is we select our R
+	#R is random
+
+	#go find average depth of the current forest
+	depths = [transforms.get_tree_depth(tree)[0]+transforms.get_tree_depth(tree)[1] for tree in forest]
+	if(dflt_dpth==None):
+		dflt_dpth = int(statistics.mean(depths)-statistics.stdev(depths))
+	
+	#make new trees and move them over to the new forest
+	new_trees = population.generate_random_forest(r_size, dflt_dpth)
+	for r in range(r_size):
+		new_forest.append(new_trees[r])
 
 	return new_forest

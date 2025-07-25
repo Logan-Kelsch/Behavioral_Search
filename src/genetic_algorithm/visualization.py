@@ -179,10 +179,144 @@ def visualize_regression_eval(
 
 import numpy as np
 import matplotlib.pyplot as plt
+import pathlib
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+from matplotlib.colors import LinearSegmentedColormap, Normalize
+from matplotlib.animation import FuncAnimation
 
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
+
+
+def animate_opt_path_bary(path_bary, pscores, dir_path='/mnt/data', title='tetra_rot.gif', frames=36, interval=100):
+    """
+    Creates and saves a rotating GIF of the optimizer path inside a regular tetrahedron,
+    with axis panes removed, uniform rotation about the centroid, colorbar, and vertex labels.
+    Labels: M, E, R, C for vertices 0-3 respectively.
+    """
+    # Regular tetrahedron vertices & edges
+    verts = np.array([
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.5, np.sqrt(3)/2, 0.0],
+        [0.5, np.sqrt(3)/6, np.sqrt(2/3)]
+    ])
+    edges = [(0,1),(0,2),(0,3),(1,2),(1,3),(2,3)]
+    labels = ['M', 'E', 'R', 'C']
+    
+    # Convert barycentric to Cartesian
+    path_cart = np.dot(path_bary, verts)
+    
+    # Custom colormap and normalization
+    stops = [
+        (0.0, "blue"),
+        (0.5, "blue"),
+        (0.9, "green"),
+        (0.95, "gray"),
+        (1.0, "red"),
+    ]
+    custom_cmap = LinearSegmentedColormap.from_list("custom", stops)
+    norm = Normalize(vmin=0, vmax=1)
+    
+    # Setup figure and axis
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.grid(False)
+    # Remove axis panes and ticks
+    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+        axis.pane.fill = False
+        axis.pane.set_edgecolor('none')
+    ax.set_xticks([]); ax.set_yticks([]); ax.set_zticks([])
+    
+    # Draw tetrahedron edges
+    for i, j in edges:
+        xs, ys, zs = verts[[i, j]].T
+        ax.plot(xs, ys, zs, color='black', linewidth=1)
+    
+    # Label vertices
+    for label, (x, y, z) in zip(labels, verts):
+        ax.text(x, y, z, label, fontsize=12, fontweight='bold', zorder=3)
+    
+    # Plot path line and scatter
+    ax.plot(path_cart[:,0], path_cart[:,1], path_cart[:,2],
+            color='gray', alpha=0.2, linewidth=1)
+    sc = ax.scatter(path_cart[:,0], path_cart[:,1], path_cart[:,2],
+                    c=pscores, cmap=custom_cmap, norm=norm, s=15)
+    cb = fig.colorbar(sc, ax=ax, pad=0.1)
+    cb.set_label('Score')
+    
+    # Equal axes
+    ax.set_box_aspect([1,1,1])
+    ax.set_xlim(0,1); ax.set_ylim(0,1); ax.set_zlim(0,1)
+
+    # Animation function: rotate around centroid
+    def update(frame):
+        azim = 360 * frame / frames
+        ax.view_init(elev=30, azim=azim)
+        return ax,
+    
+    anim = FuncAnimation(fig, update, frames=frames, interval=interval)
+    save_path = pathlib.Path(dir_path) / title
+    anim.save(str(save_path), writer='pillow', fps=1000/interval)
+    plt.close(fig)
+
+
+def visualize_opt_path_bary(path_bary, pscores, title=None, dirpath=None):
+    """
+    Plots the optimizer path defined by barycentric coordinates inside
+    a regular tetrahedron.
+    - path_bary: array-like Nx4 of barycentric coords (sum to 1 each row)
+    - pscores:   length-N list/array of scores (0 best → 1 worst)
+    - title:     optional title (also used for saving if dirpath given)
+    - dirpath:   pathlib.Path or str directory to save the figure
+    """
+    # Regular tetrahedron vertices
+    verts = np.array([
+        [0.0, 0.0, 0.0],                  # v0
+        [1.0, 0.0, 0.0],                  # v1
+        [0.5, np.sqrt(3)/2, 0.0],         # v2
+        [0.5, np.sqrt(3)/6, np.sqrt(2/3)] # v3
+    ])
+    # Convert barycentric to Cartesian
+    path_cart = np.dot(path_bary, verts)
+
+    # Define edges by vertex indices
+    edges = [(0,1),(0,2),(0,3),(1,2),(1,3),(2,3)]
+
+    # Colormap (maroon shades)
+    maroon_cmap = LinearSegmentedColormap.from_list('maroon', ['#f7e6e6', '#800000'])
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Draw tetrahedron edges
+    for i, j in edges:
+        xs, ys, zs = verts[[i, j]].T
+        ax.plot(xs, ys, zs, color='black', linewidth=1, zorder=0)
+
+    # Faint gray connecting line behind points
+    ax.plot(path_cart[:,0], path_cart[:,1], path_cart[:,2],
+            color='gray', alpha=0.2, linewidth=1, zorder=1)
+
+    # Scatter points colored by score
+    sc = ax.scatter(path_cart[:,0], path_cart[:,1], path_cart[:,2],
+                    c=pscores, cmap=maroon_cmap, s=15, zorder=2)
+    cb = plt.colorbar(sc, ax=ax, pad=0.1)
+    cb.set_label('Score')
+
+    # Equal aspect and labels
+    ax.set_box_aspect([1,1,1])
+    ax.set_xlim(0,1); ax.set_ylim(0,1); ax.set_zlim(0,1)
+    ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
+
+    if title:
+        ax.set_title(title)
+    if dirpath is not None:
+        import pathlib
+        fn = f"{title or 'opt_path_bary'}.png"
+        plt.savefig(str(pathlib.Path(dirpath) / fn), dpi=150)
+
+    plt.show()
+    plt.close()
+
 
 def visualize_opt_path(path, pscores, title=None, dirpath=None):
     """
@@ -204,10 +338,10 @@ def visualize_opt_path(path, pscores, title=None, dirpath=None):
     scores = np.array(pscores)
     
     # Faint gray line connecting the steps
-    ax.plot(positions[:,0], positions[:,1], color='gray', alpha=0.3, linewidth=1, zorder=1)
+    ax.plot(positions[:,0], positions[:,1], color='gray', alpha=0.1, linewidth=1, zorder=1)
     
     # Color-coded scatter
-    scatter = ax.scatter(positions[:,0], positions[:,1], c=scores, cmap=maroon_cmap, zorder=2)
+    scatter = ax.scatter(positions[:,0], positions[:,1], c=scores, cmap=maroon_cmap, zorder=2, s=6)
     plt.colorbar(scatter, ax=ax, label='Score')
     
     # Styling

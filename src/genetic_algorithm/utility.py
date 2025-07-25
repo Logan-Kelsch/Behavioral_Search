@@ -181,6 +181,9 @@ def random_sample_n_inverse_weighted(
 	for invs in inv_scores:
 		wscore_vol+=invs
 
+	info_d = np.finfo(np.double)
+	wscore_vol = min(wscore_vol, info_d.max/2)
+
 	for iter in range(n):
 		randval = np.random.uniform(low=0, high=wscore_vol)
 
@@ -198,6 +201,9 @@ def random_sample_n_inverse_weighted(
 
 			randval -= sorted_inv_scores[search_idx]
 			search_idx+=1
+
+			if(search_idx == len(sorted_inv_scores)-1):
+				break
 		
 		selected_indices.append(
 			raw_scores_rnd.index(

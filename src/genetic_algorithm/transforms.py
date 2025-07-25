@@ -210,15 +210,15 @@ def t_VAR(
 #func #7
 def t_RNG(
 	X:np.ndarray,
-	Delta_xmin:int	=	-1,
-	Delta_xmax:int	=	-1,
+	Delta_xmin:int	=	0,
+	Delta_xmax:int	=	0,
 	out_arr:np.ndarray|None	=	None
 ) -> np.ndarray:
 	
 	'''
 	### info 
 	this function scores x within the min and max values of x within Delta xmin and xmax respective time windows<br>
-	This function utlizes numpy
+	This function utlizes numpy and bottleneck
 	'''
 	#a universal general maximum to data development size
 	assert (Delta_xmin < 240 & Delta_xmax < 240), "t_RNG: Deltas must be below 240."
@@ -226,22 +226,19 @@ def t_RNG(
 	if(out_arr is None):
 		out_arr = np.empty_like(X)
 
-	#num rows we can compute
-	m = X.shape[0] - max(Delta_xmax, Delta_xmin)
+	min_arr = t_MIN(X=X, Delta=Delta_xmin)
+	max_arr = t_MAX(X=X, Delta=Delta_xmax)
 
-	#slices for vectorized diff
-	current = X[Delta_xmax:]
-	vec1 = X[Delta_xmax - Delta_xmin : (Delta_xmax - Delta_xmin) + m]
-	vec2 = X[:m]
+	X_numer = X - min_arr
+	X_denom = max_arr - min_arr
 
-	#complete vectorized subtraction 
-	numer = current - vec1
-	denom = vec2	- vec1
+	out_arr = np.where(
+		X_denom != 0,
+		X_numer / X_denom,
+		0.5
+	)
 
-	#suppress div warning if den==0
-	#complete division
-	with np.errstate(divide='ignore', invalid='ignore'):
-		out_arr[Delta_xmax:] = numer / denom - 0.5
+	out_arr -= 0.5
 
 	return out_arr
 
@@ -1334,50 +1331,6 @@ def forest2features(
 				for c in range(len(op_idx)):
 					x_max[:, op_idx[c]] = t_MAX(xptr[:, op_idx[c]], deltas[c])
 
-				'''#we can do matching deltas at one time, 
-				#so we will see if any match to speed it up
-				unique_deltas = np.unique(deltas)
-
-				x_max = np.empty_like(xptr)
-
-				#loop over each delta value
-				for delta in unique_deltas:
-
-					#go and get columns with the current delta value
-					cols = op_idx[deltas==delta]
-
-					#view of xptr for just those columns
-					block = xptr[:, cols]
-
-					#repeat first row (delta-1) times for padding
-					#this is going to have shape (delta-1) by k
-					pad = np.repeat(block[0:1, :], delta-1, axis=0)
-
-					#vstack to form the padded array
-					#this now has shape (T+delta-1) by k
-					ap = np.vstack((pad, block))
-
-					#look at the given window
-					win = sliding_window_view(ap, window_shape=delta, axis=0)
-
-					#allocate some memory for the outputs
-					#out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
-
-					#compute the max over each window and put it into the output buffer
-					#np.maximum.reduce(win, axis=1, out=out_buf)
-
-					out_buf = win.max(axis=2)
-
-					#write the results back and go again through the loop
-					x_max[:, cols] = out_buf
-
-					#had a lot of crashing errors in my old code, 
-					#hopefully excessively calling delete will keep the code running fine
-					del cols, block, pad, ap, win, out_buf
-
-				#delete all long term holders once these operations are done
-				del deltas, unique_deltas'''
-
 				#NOTE end creation of max matrix NOTE#
 
 				#NOTE begin creation of min matrix NOTE#
@@ -1393,55 +1346,6 @@ def forest2features(
 
 				for c in range(len(op_idx)):
 					x_min[:, op_idx[c]] = t_MIN(xptr[:, op_idx[c]], deltas[c])
-
-				'''#turn delta in to numpy array
-				deltas = np.asarray(deltas, dtype=int)
-
-				T = xptr.shape[0]
-
-				#we can do matching deltas at one time, 
-				#so we will see if any match to speed it up
-				unique_deltas = np.unique(deltas)
-
-				x_min = np.empty_like(xptr)
-
-				#loop over each delta value
-				for delta in unique_deltas:
-
-					#go and get columns with the current delta value
-					cols = op_idx[deltas==delta]
-
-					#view of xptr for just those columns
-					block = xptr[:, cols]
-
-					#repeat first row (delta-1) times for padding
-					#this is going to have shape (delta-1) by k
-					pad = np.repeat(block[0:1, :], delta-1, axis=0)
-
-					#vstack to form the padded array
-					#this now has shape (T+delta-1) by k
-					ap = np.vstack((pad, block))
-
-					#look at the given window
-					win = sliding_window_view(ap, window_shape=delta, axis=0)
-
-					#allocate some memory for the outputs
-					#out_buf = np.empty((T, cols.size), dtype=xptr.dtype)
-
-					#compute the min over each window and put it into the output buffer
-					#np.minimum.reduce(win, axis=1, out=out_buf)
-
-					out_buf = win.min(axis=2)
-
-					#write the results back and go again through the loop
-					x_min[:, cols] = out_buf
-
-					#had a lot of crashing errors in my old code, 
-					#hopefully excessively calling delete will keep the code running fine
-					del cols, block, pad, ap, win, out_buf
-
-				#delete all long term holders once these operations are done
-				del deltas, unique_deltas'''
 
 				#NOTE end creation of min matrix NOTE#
 

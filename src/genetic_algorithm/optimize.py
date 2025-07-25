@@ -5,6 +5,7 @@ import random
 import evaluation as evaluation
 import transforms as transforms	
 import population as population
+import serialization
 import optimize as optimize
 import population as poppy
 import utility as utility
@@ -407,22 +408,24 @@ def optimize_constants(
 
 	return loop_forest, p_bests, best_scores_over_time
 
+import copy
 
 def optimize_reproduction(
-	init_size	:	int	=	128,
-	init_dpth	:	int	=	3,
-	step_size	:	float	=	0.1,
-	epochs		:	int	=	50,
-	pop_mode	:	Literal['new','rec']	=	'rec',
-	iterations:	int	=	500,
-	init_x	:	tuple	=	(0.5, 0.5),
-	dcay_mode	:	Literal['decay','performance']	=	'performance',
-	step_mode	:	Literal['best','good']	=	'good',
-	decay	:	float = 0.90,
+	init_size	:	int		=	50,
+	init_dpth	:	int		=	3,
+	step_size	:	float	=	0.25,
+	epochs		:	int		=	50,
+	pop_mode	:	Literal['new','rec']	=	'new',
+	iterations	:	int		=	100,
+	init_lambda	:	tuple	=	(0.25, 0.25, 0.25, 0.25),
+	dcay_mode	:	Literal['decay','performance','pdecay']	=	'decay',
+	step_mode	:	Literal['best','good','all']	=	'good',
+	decay		:	float 	= 0.96,
 	viz_mode	:	Literal['full','path']	=	'path',
-	copt_iter	:	int	=	1
+	opt_const	:	bool	=	False,
+	copt_iter	:	int		=	1,
+	loss_source	:	Literal['nn','lm','fc']	=	'lm'
 ):
-	import tensorflow as tf
 	np.seterr(all='ignore')
 
 	logs.report_deep_globals()
@@ -433,6 +436,10 @@ def optimize_reproduction(
 
 	del data
 
+	best_lambda = np.array(init_lambda, dtype=float)
+
+	dirpath = utility.fetch_new_run_dirpath()
+
 	match(viz_mode):
 		case 'full':
 			vizout=True
@@ -442,32 +449,29 @@ def optimize_reproduction(
 			vizout=False
 			iterpath = dirpath
 
-	x = np.array(init_x, dtype=float)
-
-	dirpath = utility.fetch_new_run_dirpath()
-
-
 	#generate population, optimize
-	best_forest = population.generate_random_forest(init_size, init_dpth)
-	best_forest, best_scores, best_overtime = optimize.optimize_constants(
-		best_forest, x_raw, sthresh_q=.15, run_dir=iterpath, vizout=vizout, max_iter=copt_iter
-	)
-	#create starting point MERC reproduction, optimize
-	best_forest = reproduction.reproduce(best_forest, best_scores, dflt_dpth=init_dpth, MERC=merc_from_2d(x))
-	#optimize constants in forest
-	best_forest, best_scores, best_overtime = optimize.optimize_constants(
-		best_forest, x_raw, sthresh_q=.15, run_dir=iterpath, vizout=vizout, max_iter=copt_iter
-	)
+	p_forest = population.generate_random_forest(init_size, init_dpth)
+	p_scores = [1]*len(p_forest)
 	
-	best_loss = loss_nn(best_forest=best_forest, best_scores=best_scores, epochs=epochs, x_raw=x_raw, dirpath=iterpath, vizout=vizout)
+	'''match(loss_source):
+		case 'nn':
+			best_loss = loss_nn(best_forest=p_forest, best_scores=best_scores, epochs=epochs, x_raw=x_raw, dirpath=iterpath, vizout=vizout)
+		case 'lm':
+			best_loss = loss_lm(best_forest=p_forest, best_scores=best_scores, x_raw=x_raw, dirpath=iterpath, vizout=vizout)
+		case 'fc':
+			best_loss = loss_fc(best_scores)'''
+	
+	best_loss = 1
 	loss_c = best_loss
 
-	print(f'init: {x}, {best_loss}')
+	print(f'init: {best_lambda}, {best_loss}')
 	pscr = [best_loss]
-	path = [x.copy()]
+	path = [best_lambda.copy()]
 
 	if(dcay_mode == 'decay'):
 		step_size /= decay
+
+	alpha = 1
 
 	iter = 1
 
@@ -488,61 +492,157 @@ def optimize_reproduction(
 			#step size here operates initially at 0.3 with domain of (0, 0.25)
 			#and indef decay of size upon assumed continuous minima (local or global) finding
 			step_size = ( (sorted(pscr).index(loss_c) + 1) / len(pscr) * 0.25)
+		elif(dcay_mode == 'pdecay'):
+			alpha *= decay
+			step_size = ( (sorted(pscr).index(loss_c) + 1) / len(pscr) * alpha)
 
 
-		#random direction
-		direction = np.random.randn(2)
-		direction /= np.linalg.norm(direction)
+		cndt_lambda = propose_step_barycentric(best_lambda, step_size)
 
-		#propose new point
-		candidate = x + step_size * direction
-		candidate = np.clip(candidate, 0, 1)
+
+		best_forest = copy.deepcopy(p_forest)
+		best_scores = copy.deepcopy(p_scores)
 
 		if(pop_mode=='new'):
 			#generate population, optimize
 			best_forest = population.generate_random_forest(init_size, init_dpth)
+			
+			if(opt_const):
+				best_forest, best_scores, best_overtime = optimize.optimize_constants(
+					best_forest, x_raw, sthresh_q=.15, run_dir=iterpath, vizout=vizout, max_iter=copt_iter
+				)
+			else:
+				x_ = transforms.forest2features(
+					population=best_forest,
+					x_raw=x_raw
+				)
+				_, __, best_scores = evaluation.evaluate_forest_newer(x_, close_prices=x_raw[:, 3], lag_range=(1, 3))
+				del _, __
+
+		#generate
+		best_forest = reproduction.reproduce(best_forest, best_scores, dflt_dpth=init_dpth, MERC=cndt_lambda)
+
+		if(opt_const):
+			#optimize constants in forest
 			best_forest, best_scores, best_overtime = optimize.optimize_constants(
 				best_forest, x_raw, sthresh_q=.15, run_dir=iterpath, vizout=vizout, max_iter=copt_iter
 			)
-
-		#generate
-		best_forest = reproduction.reproduce(best_forest, best_scores, dflt_dpth=init_dpth, MERC=merc_from_2d(x))
-
-		#optimize constants in forest
-		best_forest, best_scores, best_overtime = optimize.optimize_constants(
-			best_forest, x_raw, sthresh_q=.15, run_dir=iterpath, vizout=vizout, max_iter=copt_iter
-		)
+		else:
+			x_ = transforms.forest2features(
+				population=best_forest,
+				x_raw=x_raw
+			)
+			_, __, best_scores = evaluation.evaluate_forest_newer(x_, close_prices=x_raw[:, 3], lag_range=(1, 3))
+			del _, __
 
 		#evaluate
-		loss_c = loss_nn(best_forest=best_forest, best_scores=best_scores, epochs=epochs, x_raw=x_raw, dirpath=iterpath, vizout=vizout)
-
+		match(loss_source):
+			case 'nn':
+				loss_c = loss_nn(best_forest=best_forest, best_scores=best_scores, epochs=epochs, x_raw=x_raw, dirpath=iterpath, vizout=vizout)
+			case 'lm':
+				loss_c = loss_lm(best_forest=best_forest, best_scores=best_scores, x_raw=x_raw, dirpath=iterpath, vizout=vizout)
+			case 'fc':
+				loss_c = loss_fc(best_scores)
+		
+		#print(f'LOSS_C: {loss_c, loss_fc(best_scores)}')
+	
 		if(step_mode == 'best'):
 
+			# NOTE SUCCESS
 			if(loss_c<best_loss):
-				x = candidate
+				best_lambda = cndt_lambda
 				best_loss = loss_c
+
+				path.append(cndt_lambda.copy())
+				pscr.append(loss_c)
+
+				#print('new best.')
+
+				#print(f'TO COPY: {loss_fc(best_scores)}')
+
+				p_forest = copy.deepcopy(best_forest)
+				p_scores = copy.deepcopy(best_scores)
+				pb = copy.deepcopy(best_loss)
+
+				#print(f'DD COPY: {loss_fc(p_scores)}')
+
+			else:
+
+				path.append(cndt_lambda.copy())
+				pscr.append(loss_c)
+				path.append(best_lambda.copy())
+				pscr.append(best_loss)
 
 		elif(step_mode == 'good'):
 
 			#for a step to be taken under 'good' step mode
 			#requires that the candidate position scores with in the top
 			#quarter of all scores collected this far
-			if(loss_c <= ( sorted(pscr)[int(len(pscr)/4)] )):
-				x = candidate
+			# NOTE SUCCESS
+
+			if(loss_c <= ( sorted(pscr)[int(len(pscr)/20)] )):
+				best_lambda = cndt_lambda
 				best_loss = loss_c
 
+				path.append(cndt_lambda.copy())
+				pscr.append(loss_c)
+
+				#print('new best.')
+
+				p_forest = copy.deepcopy(best_forest)
+				p_scores = copy.deepcopy(best_scores)
+				pb = copy.deepcopy(best_loss)
+
+			else:
+
+				path.append(cndt_lambda.copy())
+				pscr.append(loss_c)
+				path.append(best_lambda.copy())
+				pscr.append(best_loss)
+
+		elif(step_mode == 'all'):
+
+			# NOTE SUCCESS
+
+			best_lambda = cndt_lambda
+			best_loss = loss_c
 		
-		path.append(candidate.copy())
-		pscr.append(loss_c)
-		print(f'cndt: {candidate}, {loss_c}')
-		print(f'crnt: {x}, {best_loss}')
+			path.append(cndt_lambda.copy())
+			pscr.append(loss_c)
 
-		visualization.visualize_opt_path(np.array(path), np.array(pscr), title=f'iter: #{iter} path', dirpath=iterpath)
+			p_forest = copy.deepcopy(best_forest)
+			p_scores = copy.deepcopy(best_scores)
+			pb = copy.deepcopy(best_loss)
 
-		logs.report_deep_locals()
+		#to avoid extreme color values
+		if(len(pscr)==2):
+			pscr[0] = pscr[1]
 
+		if(loss_c<0 or best_loss<0):
+			raise ValueError(f'NEGATIVE SCORE DETECTED. ENDING PROGRAM.'
+							f'LOSS_FC generated from best_score === \n {best_scores}')
+		
+		print(f'cndt: {cndt_lambda}, {loss_c}')
+		print(f'crnt: {best_lambda}, {best_loss}')
 
-	return x, best_loss, np.array(path), np.array(pscr)
+		if(iter==iterations-1 or iter%100==99):
+			visualization.animate_opt_path_bary(np.array(path), np.array(pscr), title=f'i{iter}_path.gif', dir_path=iterpath)
+
+			logs.report_deep_locals()
+
+		del best_forest, best_scores, x_
+
+	print(f'pb: {pb}')
+
+	#print(loss_lm(best_forest=p_forest, best_scores=p_scores, x_raw=x_raw, dirpath=iterpath, vizout=vizout))
+
+	#for i in range(len(p_forest)):
+	#	print(transforms.get_oplist(p_forest[i]))
+
+	serialization.save_forest(forest=p_forest, dirpath=iterpath, name='best.4st')
+	serialization.save_deeplist(deep_list=[np.array(path), np.array(pscr)], dirpath=iterpath, name='path_pscr.hstry')
+
+	return best_lambda, best_loss, np.array(path), np.array(pscr)
 
 
 def merc_from_2d(
@@ -564,6 +664,126 @@ def merc_from_2d(
 		cross = abs((x1 - x0)*(y - y0) - (y1 - y0)*(x - x0))
 		areas.append(cross / 2)
 	return tuple(areas)
+
+
+def propose_step_barycentric(lambda_current, step_size):
+    """
+    Given current barycentric coords (shape (4,), sum to 1),
+    propose a random step within the simplex:
+      - direction sampled in the hyperplane sum=0
+      - clipped to [0,1], then renormalized to sum=1
+    """
+    # sample a random direction in R^4
+    d = np.random.randn(4)
+    # project onto hyperplane sum(d)=0
+    d = d - d.mean()
+    # normalize
+    d /= np.linalg.norm(d)
+    
+    # propose new barycentric coordinate
+    lambda_candidate = lambda_current + step_size * d
+    # ensure non-negative
+    lambda_candidate = np.clip(lambda_candidate, 0, None)
+    # renormalize to sum=1
+    lambda_candidate /= lambda_candidate.sum()
+    return lambda_candidate
+
+
+def barycentric_from_point(point):
+	"""
+	Given a point (x, y, z) inside the unit tetrahedron
+	defined by vertices v0=(0,0,0), v1=(1,0,0), v2=(0,1,0), v3=(0,0,1),
+	returns the normalized sub-volumes (barycentric coordinates)
+	corresponding to each vertex. The four returned values sum to 1.
+	
+	Order of returns: (λ0, λ1, λ2, λ3), where λi is the fraction of the
+	volume of the tetrahedron opposite vertex vi.
+	"""
+	x, y, z = point
+	# vertices
+	v0 = np.array([0.0, 0.0, 0.0])
+	v1 = np.array([1.0, 0.0, 0.0])
+	v2 = np.array([0.0, 1.0, 0.0])
+	v3 = np.array([0.0, 0.0, 1.0])
+
+	def tetra_volume(a, b, c, d):
+		# Signed volume of tetrahedron (absolute)
+		return abs(np.dot(b - a, np.cross(c - a, d - a))) / 6.0
+
+	full_vol = tetra_volume(v0, v1, v2, v3)
+
+	faces = [
+		(v1, v2, v3),  # volume opposite v0
+		(v0, v2, v3),  # opposite v1
+		(v0, v1, v3),  # opposite v2
+		(v0, v1, v2),  # opposite v3
+	]
+
+	p = np.array([x, y, z])
+	sub_vols = [tetra_volume(p, a, b, c) for (a, b, c) in faces]
+	# normalize so sum == 1
+	bary_coords = [sv / full_vol for sv in sub_vols]
+	return tuple(bary_coords)
+
+def loss_fc(
+	scores
+):
+	
+	best_scores = sorted(scores, reverse=True)
+
+	to_avg = int(np.ceil(len(best_scores)/4))
+
+	avg = 0
+	
+	for i in range(to_avg):
+		avg += (1 - best_scores[i])**2
+
+	avg /= to_avg
+
+	return avg
+
+def loss_lm(
+	best_forest, best_scores, x_raw, dirpath, vizout
+):
+	from sklearn.linear_model import LinearRegression
+
+	model = LinearRegression(n_jobs=-1)
+
+	ynew = np.roll(x_raw[:, 3], shift=-1)
+	y_ = np.log(ynew / x_raw[:, 3])
+
+	#newforest , newscores = population.extract_n_best_trees(best_forest, best_scores, 32, run_dir=dirpath, vizout=vizout)
+
+	#turning forest into feature set
+	x_ = transforms.forest2features(
+		population=best_forest,
+		x_raw=x_raw
+	)
+
+	#data prep
+	X_train, X_test, y_train, y_test = train_test_split(x_, y_, test_size=0.3, shuffle=True, random_state=0)
+	scaler = StandardScaler()
+	X_train = scaler.fit_transform(X_train)
+	X_test = scaler.transform(X_test)
+
+	model.fit(X_train, y_train)
+	y_pred = model.predict(X_test)
+	y_pred_train = model.predict(X_train)
+
+	self_r2, self_qacc = visualization.visualize_regression_eval(y_test=y_train, y_pred=y_pred_train, title='Self Test', run_dir=dirpath)
+	ind_r2, ind_qacc = visualization.visualize_regression_eval(y_test=y_test, y_pred=y_pred, title='Independent Test', run_dir=dirpath)
+
+	self_qacc = (self_qacc * 2 - 1)
+	ind_qacc = (ind_qacc * 2 - 1)
+
+	loss_LM = (
+		(1-self_r2) * (1-self_qacc) * min(1-ind_r2**2, 1) * (1-ind_qacc**2)
+	)
+
+	del model
+
+	return loss_LM
+
 
 def loss_nn(
 	best_forest, best_scores, epochs, x_raw, dirpath, vizout
@@ -603,5 +823,13 @@ def loss_nn(
 
 if __name__ == "__main__":
 	print("running...")
-	optimize_reproduction()
-	optimize_reproduction(pop_mode='new')
+	#optimize_reproduction()
+
+	#optimize_reproduction(init_size=26, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
+	#optimize_reproduction(init_size=50, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
+	#optimize_reproduction(init_size=100, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
+	#optimize_reproduction(init_size=200, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
+	#optimize_reproduction(init_size=26, init_dpth=7, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
+	#optimize_reproduction(init_size=50, init_dpth=7, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
+	#optimize_reproduction(init_size=100, init_dpth=7, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
+	optimize_reproduction(init_size=250, init_dpth=6,init_lambda=(0,0.25,0.25,0.5), loss_source='lm',pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=100, decay=0.995)

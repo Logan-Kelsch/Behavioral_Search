@@ -12,6 +12,8 @@ from sklearn.metrics import r2_score
 from sklearn.linear_model import LinearRegression
 from typing import Tuple, List, Any
 import visualization as visualization
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 
 
 def evaluate_forest_newer(
@@ -316,7 +318,7 @@ def get_best_forest(
 from keras.callbacks import EarlyStopping
 import matplotlib.pyplot as plt
 
-def standard_NN_construction(X_train, y_train, epochs=250):
+def standard_NN_construction(X_train, y_train, epochs=250, verbose=0):
 	import tensorflow as tf
 	from keras.optimizers.schedules import ExponentialDecay
 
@@ -350,22 +352,61 @@ def standard_NN_construction(X_train, y_train, epochs=250):
 	with tf.device('/GPU:0'):
 		model = build_model()
 		history = model.fit(X_train, y_train, epochs=epochs, batch_size=256, \
-						validation_split=0.2, verbose=0, shuffle=False, callbacks=[reduce_lr, early_stopping])
+						validation_split=0.2, verbose=verbose, shuffle=False, callbacks=[reduce_lr, early_stopping])
 		
 	return model, history
+
+
+def standard_LM_construction(X_train, y_train):
+	from sklearn.linear_model import LinearRegression
+	from keras.optimizers.schedules import ExponentialDecay
+
+	model = LinearRegression()
+
+
+	model.fit(X_train, y_train)
+	
+		
+	return model
+
+
+def standard_LM_evaluation(
+	X_train,X_test,y_train,y_test,
+	model,
+	run_dir,
+	vizout,
+	show:bool=False
+):
+
+	y_pred = model.predict(X_test)
+	y_pred_train = model.predict(X_train)
+
+	self_r2, self_qacc = visualization.visualize_regression_eval(y_test=y_train, y_pred=y_pred_train, title='Self Test', run_dir=run_dir, vizout=vizout, show=show)
+	ind_r2, ind_qacc = visualization.visualize_regression_eval(y_test=y_test, y_pred=y_pred, title='Independent Test', run_dir=run_dir, vizout=vizout, show=show)
+
+	self_qacc = (self_qacc * 2 - 1)
+	ind_qacc = (ind_qacc * 2 - 1)
+
+	loss_LM = (
+		(1-self_r2) * (1-self_qacc) * min(1-ind_r2**2, 1) * (1-ind_qacc**2)
+	)
+
+	return loss_LM
+
 
 def standard_NN_evaluation(
 	X_train,X_test,y_train,y_test,
 	model,
 	history,
 	run_dir,
-	vizout
+	vizout,
+	show:bool=False
 ):
 	y_pred = model.predict(X_test)
 	y_pred_train = model.predict(X_train)
 
-	self_r2, self_qacc = visualization.visualize_regression_eval(y_test=y_train, y_pred=y_pred_train, title='Self Test', run_dir=run_dir)
-	ind_r2, ind_qacc = visualization.visualize_regression_eval(y_test=y_test, y_pred=y_pred, title='Independent Test', run_dir=run_dir)
+	self_r2, self_qacc = visualization.visualize_regression_eval(y_test=y_train, y_pred=y_pred_train, title='Self Test', run_dir=run_dir, vizout=vizout, show=show)
+	ind_r2, ind_qacc = visualization.visualize_regression_eval(y_test=y_test, y_pred=y_pred, title='Independent Test', run_dir=run_dir, vizout=vizout, show=show)
 
 	loss = history.history['loss'][1:]
 	val_loss = history.history.get('val_loss', [])[1:]
@@ -404,9 +445,17 @@ def standard_NN_evaluation(
 	if(vizout):
 		fig.savefig(str(run_dir / 'training.png'))
 
+	#if(show):
+	#	plt.show()
+
 	plt.close()
 
-	loss_NN = 1 - (np.clip(self_r2 * np.sqrt(self_qacc), 0, 1) * np.clip(np.sign(ind_r2)*(ind_r2 * np.sqrt(ind_qacc))**2, 0, 1))
+	self_qacc = (self_qacc * 2 - 1)
+	ind_qacc = (ind_qacc * 2 - 1)
+
+	loss_NN = (
+		(1-self_r2) * (1-self_qacc**2) * min(1-ind_r2**3, 1) * (1-ind_qacc**4)
+	)
 
 	del fig, ax1, ax2
 
