@@ -2,19 +2,18 @@ import log as logs
 import matplotlib.pyplot as plt
 from typing import Literal
 import random
-import evaluation as evaluation
-import transforms as transforms	
-import population as population
+import evaluation
+import transforms
 import serialization
-import optimize as optimize
+import optimize
 import population as poppy
-import utility as utility
-import mutation as mutation
-import reproduction as reproduction
-import visualization as visualization
+import utility
+import mutation
+import reproduction
+import visualization
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-
+import copy
 import numpy as np
 import pandas as pd
 import imageio
@@ -408,7 +407,169 @@ def optimize_constants(
 
 	return loop_forest, p_bests, best_scores_over_time
 
-import copy
+def optimize_keystone(
+	init_size	:	int		=	50,
+	init_dpth	:	int		=	3,
+	iterations	:	int		=	100,
+	survival	:	float	=	0.3,
+	atr_thresh	:	float	=	1,
+	plratio		:	float	=	1,
+
+	step_size	:	float	=	0.1,
+	init_lambda	:	tuple	=	(0.33, 0.33, 0.34),
+	viz_mode	:	Literal['full','path']	=	'path',
+	dcay_mode	:	Literal['decay','performance','pdecay']	=	'decay',
+	decay_rate	:	float	=	0.96,
+	loss_source	:	str	=	'best'
+):
+	np.seterr(all='ignore')
+	logs.report_deep_globals()
+	data = pd.read_csv("../../data/ES15.csv")
+	x_raw = data.values.copy()
+	del data
+
+	ln_plratio = np.log(plratio)
+
+	best_lambda = np.array(init_lambda, dtype=float)
+
+	dirpath = utility.fetch_new_run_dirpath()
+
+	match(viz_mode):
+		case 'full':
+			vizout=True
+			iterpath = dirpath / 'iter_0'
+			iterpath.mkdir(exist_ok=True)
+		case 'path':
+			vizout=False
+			iterpath = dirpath
+
+	#generate population, optimize
+	p_forest = poppy.generate_random_forest(init_size, init_dpth)
+	p_scores = [1]*len(p_forest)
+	
+	best_loss = 1
+	loss_c = best_loss
+
+	print(f'init: {best_lambda}, {best_loss}')
+	pscr = [best_loss]
+	path = [best_lambda.copy()]
+
+	if(dcay_mode == 'decay'):
+		step_size /= decay_rate
+
+	alpha = 1
+
+	iter = 1
+
+	for iter in range(iterations):
+		print(f'iter: {iter}')
+		match(viz_mode):
+			case 'full':
+				iterpath = dirpath / f'iter_{iter}'
+				iterpath.mkdir(exist_ok=True)
+			case 'path':
+				#the path to file saving does not need to change
+				pass
+
+		#update step size
+		if(dcay_mode == 'decay'):
+			step_size *= decay_rate
+		elif(dcay_mode == 'performance'):
+			#step size here operates initially at 0.3 with domain of (0, 0.25)
+			#and indef decay of size upon assumed continuous minima (local or global) finding
+			step_size = ( (sorted(pscr).index(loss_c) + 1) / len(pscr) * 0.25)
+		elif(dcay_mode == 'pdecay'):
+			alpha *= decay_rate
+			step_size = ( (sorted(pscr).index(loss_c) + 1) / len(pscr) * alpha)
+
+
+		#cndt_lambda = propose_step_barycentric(best_lambda, step_size)
+		cndt_lambda = propose_step_anytime2d(atr_thresh, ln_plratio, step_size)
+
+		best_forest = copy.deepcopy(p_forest)
+		best_scores = copy.deepcopy(p_scores)
+
+		#generate
+		best_forest = reproduction.reproduce_scarce(best_forest, best_scores, dflt_dpth=init_dpth, MRC=cndt_lambda)
+
+		x_ = transforms.forest2features(
+			population=best_forest,
+			x_raw=x_raw
+		)
+
+		sol_arr = evaluation.generate_solarr_atrplr(price_data=x_raw, atr_thresh=atr_thresh, ln_plratio=ln_plratio)
+
+		best_scores = evaluation.evaluate_forest_atrplr(x_, solarr=sol_arr)
+		
+		#evaluate
+		match(loss_source):
+			case 'best':
+				#domain: [0, 1]
+				loss_c = 1 - max(best_scores)
+	
+
+		# so I suppose here we will check to see if the loss_c is good enough
+		# if the loss is enough we will propose a step forward in the atrthr/lnplr space
+
+		# if the loss is not enough, we maybe can consider MERC optimization, but can implement later
+		# otherwise we would just toss the cndt forest and try repr again on new cndt step
+
+		# NOTE SUCCESS
+		if(loss_c < survival):
+			best_lambda = cndt_lambda
+			best_loss = loss_c
+
+			path.append(cndt_lambda.copy())
+			pscr.append(loss_c)
+
+			#print('new best.')
+
+			#print(f'TO COPY: {loss_fc(best_scores)}')
+
+			p_forest = copy.deepcopy(best_forest)
+			p_scores = copy.deepcopy(best_scores)
+			pb = copy.deepcopy(best_loss)
+
+			#print(f'DD COPY: {loss_fc(p_scores)}')
+
+		# NOTE FAILURE
+		else:
+
+			path.append(cndt_lambda.copy())
+			pscr.append(loss_c)
+			path.append(best_lambda.copy())
+			pscr.append(best_loss)
+
+
+		#to avoid extreme color values
+		if(len(pscr)>=2):
+			pscr[0] = pscr[1]
+
+		if(loss_c<0 or best_loss<0):
+			raise ValueError(f'NEGATIVE SCORE DETECTED. ENDING PROGRAM.'
+							f'LOSS_FC generated from best_score === \n {best_scores}')
+		
+		print(f'cndt: {cndt_lambda}, {loss_c}')
+		print(f'crnt: {best_lambda}, {best_loss}')
+
+		if(iter==iterations-1 or iter%100==99):
+			#visualization.animate_opt_path_bary(np.array(path), np.array(pscr), title=f'i{iter}_path.gif', dir_path=iterpath)
+
+			logs.report_deep_locals()
+
+		del best_forest, best_scores, x_
+
+	print(f'pb: {pb}')
+
+	#print(loss_lm(best_forest=p_forest, best_scores=p_scores, x_raw=x_raw, dirpath=iterpath, vizout=vizout))
+
+	#for i in range(len(p_forest)):
+	#	print(transforms.get_oplist(p_forest[i]))
+
+	serialization.save_forest(forest=p_forest, dirpath=iterpath, name='best.4st')
+	serialization.save_deeplist(deep_list=[np.array(path), np.array(pscr)], dirpath=iterpath, name='path_pscr.hstry')
+
+	return best_lambda, best_loss, np.array(path), np.array(pscr)	
 
 def optimize_reproduction(
 	init_size	:	int		=	50,
@@ -450,7 +611,7 @@ def optimize_reproduction(
 			iterpath = dirpath
 
 	#generate population, optimize
-	p_forest = population.generate_random_forest(init_size, init_dpth)
+	p_forest = poppy.generate_random_forest(init_size, init_dpth)
 	p_scores = [1]*len(p_forest)
 	
 	'''match(loss_source):
@@ -505,7 +666,7 @@ def optimize_reproduction(
 
 		if(pop_mode=='new'):
 			#generate population, optimize
-			best_forest = population.generate_random_forest(init_size, init_dpth)
+			best_forest = poppy.generate_random_forest(init_size, init_dpth)
 			
 			if(opt_const):
 				best_forest, best_scores, best_overtime = optimize.optimize_constants(
@@ -665,6 +826,24 @@ def merc_from_2d(
 		areas.append(cross / 2)
 	return tuple(areas)
 
+import math
+
+def propose_step_anytime2d(val_free, val_pos, step_size):
+    """
+    Return (new_free, new_pos) such that
+      √((new_free-val_free)^2 + (new_pos-val_pos)^2) == step_size,
+    with new_pos ≥ val_pos (i.e. Δpos in [0,step_size]) and
+    new_free unconstrained (Δfree in [-step_size, +step_size]).
+
+    This samples uniformly over the semicircle of radius step_size
+    where Δpos ≥ 0.
+    """
+    # pick an angle θ ∈ [0, π] uniformly
+    th = random.random() * math.pi
+    dfree = step_size * math.cos(th)
+    dpos  = step_size * math.sin(th)
+
+    return val_free + dfree, val_pos + dpos
 
 def propose_step_barycentric(lambda_current, step_size):
     """
@@ -795,7 +974,7 @@ def loss_nn(
 
 	#NN feature prep
 	img = visualization.visualize_tree(best_forest[best_scores.index(min(best_scores))], run_dir=dirpath, vizout=vizout)
-	newforest , newscores = population.extract_n_best_trees(best_forest, best_scores, 16, run_dir=dirpath, vizout=vizout)
+	newforest , newscores = poppy.extract_n_best_trees(best_forest, best_scores, 16, run_dir=dirpath, vizout=vizout)
 
 	#turning forest into feature set
 	x_ = transforms.forest2features(
