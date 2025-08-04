@@ -1,8 +1,91 @@
 import transforms as transforms
 import population as population
 import math
+import copy
 import statistics
 import utility as utility
+
+def reproduce_scarce(
+	forest	:	list,
+	scores	:	list,
+	size	:	int,
+	sthresh	:	float,
+	dflt_dpth	:	int	=	None,
+	MRC		:	tuple	=	(0.33, 0.33, 0.34)
+):
+
+
+	scored_forests = sorted(zip(forest, scores), key=lambda pair: pair[1])
+	sorted_forest, sorted_scores = map(list, zip(*scored_forests))
+
+
+	i = 0
+	while(i<size):
+		if(sorted_scores[i]>sthresh):
+			break
+		i+=1
+	
+	num_offspring = size-i
+
+	m_size = math.floor(num_offspring*MRC[0])
+	c_size = math.floor(num_offspring*MRC[2])
+	r_size = size - m_size - c_size
+
+	new_forest = copy.deepcopy(sorted_forest[:i])
+
+	#pick random trees from inverse transform sampling of scores
+	m_idx = utility.random_sample_n_inverse_weighted(sorted_scores, m_size)
+
+	for m in m_idx:
+
+		new_tree:transforms.T_node = sorted_forest[m].copy()
+		ptr = transforms.get_random_node(new_tree)
+		
+		#mutate at randomly reached branch in the new tree
+		ptr.random()
+
+		new_forest.append(new_tree)
+
+	#second section is we select our C
+	#C is crossover (branch swapping)
+
+	for c in range(c_size):
+
+		#need to go get two different trees, one for giving a branch and one for recieving a branch
+
+		#this will have two forest indices, [male, female]
+		c_idx = utility.random_sample_n_inverse_weighted(sorted_scores, 2, let_dupe=False)
+
+		#go get detached branch from male tree
+		male_ptr = sorted_forest[c_idx[0]]
+
+		new_branch:transforms.T_node = transforms.get_random_node(male_ptr).copy()
+
+		new_tree = sorted_forest[c_idx[1]].copy()
+
+		#go get reattach branch location from female tree
+		female_ptr = transforms.get_random_node(new_tree)
+
+		female_ptr.replace(new_branch)
+
+		new_forest.append(new_tree)
+
+	#fourth section is we select our R
+	#R is random
+
+	#go find average depth of the current forest
+	depths = [transforms.get_tree_depth(tree)[0]+transforms.get_tree_depth(tree)[1] for tree in sorted_forest]
+	if(dflt_dpth==None):
+		dflt_dpth = int(statistics.mean(depths)-statistics.stdev(depths))
+	
+	#make new trees and move them over to the new forest
+	new_trees = population.generate_random_forest(r_size, dflt_dpth)
+	for r in range(r_size):
+		new_forest.append(new_trees[r])
+
+
+	return new_forest
+
 
 def reproduce(
     forest	:	list,

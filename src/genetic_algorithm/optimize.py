@@ -408,25 +408,33 @@ def optimize_constants(
 	return loop_forest, p_bests, best_scores_over_time
 
 def optimize_keystone(
-	init_size	:	int		=	50,
+	init_size	:	int		=	100,
 	init_dpth	:	int		=	3,
-	iterations	:	int		=	100,
-	survival	:	float	=	0.3,
+	iterations	:	int		=	500,
+	survival	:	float	=	0.8,
 	atr_thresh	:	float	=	1,
 	plratio		:	float	=	1,
+	dyn_theta	:	bool	=	True,
+	dsprt_time	:	int		=	25,
+	step_frac	:	float	=	0.37,
 
-	step_size	:	float	=	0.1,
+	step_size	:	float	=	0.05,
 	init_lambda	:	tuple	=	(0.33, 0.33, 0.34),
 	viz_mode	:	Literal['full','path']	=	'path',
 	dcay_mode	:	Literal['decay','performance','pdecay']	=	'decay',
-	decay_rate	:	float	=	0.96,
-	loss_source	:	str	=	'best'
+	decay_rate	:	float	=	0.996,
+	loss_source	:	str	=	'best_invf1_balanced'
 ):
 	np.seterr(all='ignore')
 	logs.report_deep_globals()
 	data = pd.read_csv("../../data/ES15.csv")
 	x_raw = data.values.copy()
 	del data
+
+	if('balanced' in loss_source):
+		use_bal_coef = True
+	else:
+		use_bal_coef = False
 
 	ln_plratio = np.log(plratio)
 
@@ -450,15 +458,22 @@ def optimize_keystone(
 	best_loss = 1
 	loss_c = best_loss
 
-	print(f'init: {best_lambda}, {best_loss}')
+	#sspace is solution space
+	best_sspace_pos = [atr_thresh, ln_plratio, survival]
+	best_sspace_pos = np.around(np.array(best_sspace_pos, dtype=float), 4).tolist()
+
+	print(f'init: {best_sspace_pos}, {best_loss}')
 	pscr = [best_loss]
-	path = [best_lambda.copy()]
+	path = [best_sspace_pos.copy()]
 
 	if(dcay_mode == 'decay'):
 		step_size /= decay_rate
 
 	alpha = 1
-
+	#-1 signals to not use theta for any reason
+	#per declaring dynamic theta False
+	theta = -1
+	stagnant = dsprt_time
 	iter = 1
 
 	for iter in range(iterations):
@@ -483,14 +498,23 @@ def optimize_keystone(
 			step_size = ( (sorted(pscr).index(loss_c) + 1) / len(pscr) * alpha)
 
 
+		#we are going to offset theta if it is dynamically active.
+		if(dyn_theta):
+			theta = 1 - (max(stagnant,0)/dsprt_time)
+
+
 		#cndt_lambda = propose_step_barycentric(best_lambda, step_size)
-		cndt_lambda = propose_step_anytime2d(atr_thresh, ln_plratio, step_size)
+		#bringing in best_sspace_pos allows for continuation from best position
+		atr_thresh, ln_plratio = propose_step_anytime2d(best_sspace_pos[0], best_sspace_pos[1], step_size, theta_offset=theta)
+
+		cndt_sspace_pos = [atr_thresh, ln_plratio, survival]
+		cndt_sspace_pos = np.around(np.array(cndt_sspace_pos, dtype=float), 4).tolist()
 
 		best_forest = copy.deepcopy(p_forest)
 		best_scores = copy.deepcopy(p_scores)
 
 		#generate
-		best_forest = reproduction.reproduce_scarce(best_forest, best_scores, dflt_dpth=init_dpth, MRC=cndt_lambda)
+		best_forest = reproduction.reproduce_scarce(best_forest, best_scores, size=init_size, sthresh=survival, dflt_dpth=init_dpth, MRC=best_lambda)
 
 		x_ = transforms.forest2features(
 			population=best_forest,
@@ -499,13 +523,20 @@ def optimize_keystone(
 
 		sol_arr = evaluation.generate_solarr_atrplr(price_data=x_raw, atr_thresh=atr_thresh, ln_plratio=ln_plratio)
 
-		best_scores = evaluation.evaluate_forest_atrplr(x_, solarr=sol_arr)
+
+		best_scores = evaluation.evaluate_forest_atrplr(x_, solarr=sol_arr, bal_coef=use_bal_coef)
 		
 		#evaluate
 		match(loss_source):
-			case 'best':
+			case 'best_invf1':
 				#domain: [0, 1]
-				loss_c = 1 - max(best_scores)
+				loss_c = min(round(1 - max(best_scores), 4), 1)
+
+			case 'best_invf1_balanced':
+				#domain: [0, 1]
+				loss_c = min(round(1 - max(best_scores), 4), 1)
+
+		
 	
 
 		# so I suppose here we will check to see if the loss_c is good enough
@@ -516,13 +547,14 @@ def optimize_keystone(
 
 		# NOTE SUCCESS
 		if(loss_c < survival):
-			best_lambda = cndt_lambda
+			
+			best_sspace_pos = cndt_sspace_pos
 			best_loss = loss_c
 
-			path.append(cndt_lambda.copy())
+			path.append(cndt_sspace_pos.copy())
 			pscr.append(loss_c)
 
-			#print('new best.')
+			stagnant = dsprt_time
 
 			#print(f'TO COPY: {loss_fc(best_scores)}')
 
@@ -530,15 +562,18 @@ def optimize_keystone(
 			p_scores = copy.deepcopy(best_scores)
 			pb = copy.deepcopy(best_loss)
 
-			#print(f'DD COPY: {loss_fc(p_scores)}')
+			#step lower AFTER making step
+			survival -= (survival-best_loss)*step_frac
 
 		# NOTE FAILURE
 		else:
 
-			path.append(cndt_lambda.copy())
+			path.append(cndt_sspace_pos.copy())
 			pscr.append(loss_c)
-			path.append(best_lambda.copy())
+			path.append(best_sspace_pos.copy())
 			pscr.append(best_loss)
+
+			stagnant -= 1
 
 
 		#to avoid extreme color values
@@ -549,15 +584,26 @@ def optimize_keystone(
 			raise ValueError(f'NEGATIVE SCORE DETECTED. ENDING PROGRAM.'
 							f'LOSS_FC generated from best_score === \n {best_scores}')
 		
-		print(f'cndt: {cndt_lambda}, {loss_c}')
-		print(f'crnt: {best_lambda}, {best_loss}')
+		print(f'cndt: {cndt_sspace_pos}, {loss_c}')
+		print(f'crnt: {best_sspace_pos}, {best_loss}')
+		
 
-		if(iter==iterations-1 or iter%100==99):
-			#visualization.animate_opt_path_bary(np.array(path), np.array(pscr), title=f'i{iter}_path.gif', dir_path=iterpath)
+		if(iter%5==0):
+			best_forest = poppy.remove_duplicates(best_forest)
 
+		if(iter==iterations-1):
+			
 			logs.report_deep_locals()
 
 		del best_forest, best_scores, x_
+
+	gif_title = str(f"Best_F1_{round(max(p_scores), 3)}")
+	visualization.visualize_opt_path_3d(path, pscr, title=gif_title, dirpath=iterpath,
+        frames=90, interval=150)
+			
+	best_idx = np.argmax(p_scores)
+
+	img = visualization.visualize_tree(root=p_forest[best_idx], vizout=True, run_dir=iterpath)
 
 	print(f'pb: {pb}')
 
@@ -828,44 +874,72 @@ def merc_from_2d(
 
 import math
 
-def propose_step_anytime2d(val_free, val_pos, step_size):
-    """
-    Return (new_free, new_pos) such that
-      √((new_free-val_free)^2 + (new_pos-val_pos)^2) == step_size,
-    with new_pos ≥ val_pos (i.e. Δpos in [0,step_size]) and
-    new_free unconstrained (Δfree in [-step_size, +step_size]).
+def propose_step_anytime2d(val_1, val_2, step_size, theta_offset:float=-1):
+	"""
+	Return (new_free, new_pos) such that
+	  sqrt((new_free-val_free)^2 + (new_pos-val_pos)^2) == step_size,
+	with new_pos >= val_pos (i.e. dpos in [0,step_size]) and
+	new_free unconstrained (dfree in [-step_size, +step_size]).
 
-    This samples uniformly over the semicircle of radius step_size
-    where Δpos ≥ 0.
-    """
-    # pick an angle θ ∈ [0, π] uniformly
-    th = random.random() * math.pi
-    dfree = step_size * math.cos(th)
-    dpos  = step_size * math.sin(th)
+	This samples uniformly over the semicircle of radius step_size
+	where dpos ≥ 0.
+	"""
 
-    return val_free + dfree, val_pos + dpos
+	if(theta_offset == -1):
+		#this case means we are NOT using a theta offset
+		# pick an angle theta in [0, pi] uniformly
+		th = random.random() * math.pi
+		#throwing a chance of negative values in there in one dimention
+		#net direction is still >=0 for all random.random().. I think????
+		dfree = step_size * math.cos(th - (math.pi/4))
+		dpos  = step_size * math.sin(th - (math.pi/4))
 
-def propose_step_barycentric(lambda_current, step_size):
-    """
-    Given current barycentric coords (shape (4,), sum to 1),
-    propose a random step within the simplex:
-      - direction sampled in the hyperplane sum=0
-      - clipped to [0,1], then renormalized to sum=1
-    """
-    # sample a random direction in R^4
-    d = np.random.randn(4)
-    # project onto hyperplane sum(d)=0
-    d = d - d.mean()
-    # normalize
-    d /= np.linalg.norm(d)
-    
-    # propose new barycentric coordinate
-    lambda_candidate = lambda_current + step_size * d
-    # ensure non-negative
-    lambda_candidate = np.clip(lambda_candidate, 0, None)
-    # renormalize to sum=1
-    lambda_candidate /= lambda_candidate.sum()
-    return lambda_candidate
+		return val_1 + dfree, val_2 + dpos
+	
+	else:
+		#theta offset will be coming in as 0 being only positive pick
+		#theta offset will be coming in as 1 being any direction pick
+
+		#we are using sin/cos curves of (x - 3/4*pi)
+
+		#theta coming in [0 , 1] scales uniform selection range into [pi/2 , 2pi]
+		theta_range = ( theta_offset * 3 * math.pi + math.pi ) / 2
+		
+		#we will manage this around zero for simplicity
+		#this being centered around zero is then moved to pi
+		th = (random.random() - 0.5) * theta_range + math.pi
+		
+
+		curve_offset = 3 * math.pi / 4
+
+		dcos = step_size * math.cos(th - curve_offset)
+		dsin = step_size * math.sin(th - curve_offset)
+
+		return val_1 + dcos, val_2 + dsin
+		
+
+
+def propose_step_barycentric(lambda_current, step_size):#
+	"""
+	Given current barycentric coords (shape (4,), sum to 1),
+	propose a random step within the simplex:
+	  - direction sampled in the hyperplane sum=0
+	  - clipped to [0,1], then renormalized to sum=1
+	"""
+	# sample a random direction in R^4
+	d = np.random.randn(4)
+	# project onto hyperplane sum(d)=0
+	d = d - d.mean()
+	# normalize
+	d /= np.linalg.norm(d)
+	
+	# propose new barycentric coordinate
+	lambda_candidate = lambda_current + step_size * d
+	# ensure non-negative
+	lambda_candidate = np.clip(lambda_candidate, 0, None)
+	# renormalize to sum=1
+	lambda_candidate /= lambda_candidate.sum()
+	return lambda_candidate
 
 
 def barycentric_from_point(point):
@@ -1004,11 +1078,5 @@ if __name__ == "__main__":
 	print("running...")
 	#optimize_reproduction()
 
-	#optimize_reproduction(init_size=26, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
-	#optimize_reproduction(init_size=50, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
-	#optimize_reproduction(init_size=100, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
-	#optimize_reproduction(init_size=200, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
-	#optimize_reproduction(init_size=26, init_dpth=7, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
-	#optimize_reproduction(init_size=50, init_dpth=7, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
-	#optimize_reproduction(init_size=100, init_dpth=7, pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=500, decay=0.995)
-	optimize_reproduction(init_size=250, init_dpth=6,init_lambda=(0,0.25,0.25,0.5), loss_source='lm',pop_mode='rec', dcay_mode='pdecay', step_mode='best', iterations=100, decay=0.995)
+	for i in range(8):
+		optimize_keystone(init_size=100, iterations=50, atr_thresh=0.4, plratio=3, init_dpth=5, init_lambda=(0.0,0.2,0.8),step_frac=round((i+1)/25, 3))

@@ -57,6 +57,32 @@ def oplist2forests(
 
 	return forest_batches, prll_idx_batches
 
+def remove_duplicates(
+	forest	:	list,
+	keep_cnt:	int	=	1
+):
+	
+	idx_2del = []
+	dupe_cnt = 0
+	for t1 in range(len(forest)):
+		for t2 in range(t1+1,len(forest)):
+
+			if(forest[t1]==forest[t2]):
+				dupe_cnt+=1
+
+			if(dupe_cnt>keep_cnt):
+				idx_2del.append(t2)
+
+		dupe_cnt = 0
+	
+	del_these = sorted((list(set(idx_2del))),reverse=True)
+	for didx in del_these:
+		forest.pop(didx)
+
+	return forest
+
+
+
 import matplotlib.pyplot as plt
 
 def extract_n_best_trees(

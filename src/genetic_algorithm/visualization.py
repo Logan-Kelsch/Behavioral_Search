@@ -258,6 +258,172 @@ def animate_opt_path_bary(path_bary, pscores, dir_path='/mnt/data', title='tetra
     anim.save(str(save_path), writer='pillow', fps=1000/interval)
     plt.close(fig)
 
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.animation import FuncAnimation
+import pathlib
+
+def visualize_opt_path_3d(path, pscores, title=None, dirpath=None,
+                          frames=90, interval=200):
+    """
+    Plots the 3D path taken by the optimizer in a box that fits the
+    data domain, then animates a full 360° rotation and saves it as a GIF.
+
+    Before plotting, applies np.exp to all values in the second dimension (y),
+    and auto‐fits all three axes to the data extents (with a small margin).
+
+    Parameters
+    ----------
+    path : sequence of length‑3 iterables
+        List or array-like of (x, y, z) positions.
+    pscores : sequence of floats
+        Scores in [0, 1], one per position.
+    title : str, optional
+        Base name for the output file (no extension).
+    dirpath : pathlib.Path or str, optional
+        Directory in which to save the GIF. Defaults to cwd.
+    frames : int, optional
+        Number of frames in the rotation (default 360).
+    interval : int, optional
+        Delay between frames in milliseconds (default 50).
+    """
+    # Prepare output path
+    dirpath = pathlib.Path(dirpath) if dirpath is not None else pathlib.Path.cwd()
+    dirpath.mkdir(parents=True, exist_ok=True)
+    fname = (title or "opt_path_3d") + ".gif"
+    out_path = dirpath / fname
+
+    # Colormap
+    maroon_cmap = LinearSegmentedColormap.from_list(
+        "maroon", ["#0099FF", "#87878782", "#DB0000"]
+    )
+
+    # Convert inputs and apply exp to the 2nd dimension (y)
+    positions = np.asarray(path, dtype=float).copy()
+    positions[:, 1] = np.exp(positions[:, 1])
+    scores = np.asarray(pscores, dtype=float)
+
+    # Compute axis limits with 5% margin
+    def limits(vals):
+        vmin, vmax = vals.min(), vals.max()
+        span = vmax - vmin
+        m = 0.05 * span if span > 0 else 0.05
+        return vmin - m, vmax + m
+
+    x_min, x_max = limits(positions[:, 0])
+    y_min, y_max = limits(positions[:, 1])
+    z_min, z_max = limits(positions[:, 2])
+
+    # Set up 3D figure
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+
+    # Draw dynamic rectangular prism edges
+    # Bottom face (z = z_min)
+    ax.plot([x_min, x_max, x_max, x_min, x_min],
+            [y_min, y_min, y_max, y_max, y_min],
+            [z_min]*5, color="black", lw=1)
+    # Top face (z = z_max)
+    ax.plot([x_min, x_max, x_max, x_min, x_min],
+            [y_min, y_min, y_max, y_max, y_min],
+            [z_max]*5, color="black", lw=1)
+    # Vertical edges
+    for xi, yi in [(x_min, y_min), (x_min, y_max),
+                   (x_max, y_min), (x_max, y_max)]:
+        ax.plot([xi, xi], [yi, yi], [z_min, z_max],
+                color="black", lw=1)
+
+    # Connect the path
+    ax.plot3D(
+        positions[:, 0], positions[:, 1], positions[:, 2],
+        color="gray", alpha=0.1, linewidth=1, zorder=1
+    )
+
+    # Color‑coded scatter
+    scatter = ax.scatter(
+        positions[:, 0], positions[:, 1], positions[:, 2],
+        c=scores, cmap=maroon_cmap, s=12, zorder=2
+    )
+    fig.colorbar(scatter, ax=ax, label="Score")
+
+    # Apply the computed limits
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    ax.set_zlim(z_min, z_max)
+
+    ax.set_xlabel("ATR Coef")
+    ax.set_ylabel("Exit Ratio")
+    ax.set_zlabel("Loss")
+
+    if title:
+        ax.set_title(title)
+
+    # Animation: rotate around vertical axis
+    def update(frame):
+        az = 360 * frame / frames
+        ax.view_init(elev=30, azim=az)
+        return scatter,
+
+    anim = FuncAnimation(fig, update, frames=frames, interval=interval, blit=True)
+    anim.save(str(out_path), writer="pillow", fps=1000/interval)
+    plt.close(fig)
+
+
+def visualize_cumulative_first_feature_pl(best_pls, time_index=None, figsize=(10, 4), title=None):
+    """
+    Plot the cumulative profit/loss series over time for the first feature's best mask.
+
+    Parameters
+    ----------
+    best_pls : list of np.ndarray
+        The list returned by `best_feature_pl`, where each entry is the
+        masked-PL array for one feature.
+    time_index : array-like, optional
+        Sequence of time points (e.g., dates or integer indices). If None,
+        uses range(len(best_pls[0])).
+    figsize : tuple, optional
+        Figure size passed to matplotlib.
+    title : str, optional
+        If provided, used as the plot title. Otherwise defaults to
+        "Cumulative PL Over Time - Feature 1".
+
+    Returns
+    -------
+    fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
+        The figure and axes objects for further customization.
+    """
+    # Extract the first feature’s masked PL series
+    pl_series = best_pls[0]
+    
+    # Replace NaNs with zero so they don't break the cumulative sum
+    pl_clean = np.where(np.isnan(pl_series), 0.0, pl_series)
+    
+    # Compute cumulative PL
+    cum_pl = np.cumsum(pl_clean)
+    
+    # Build x-axis
+    if time_index is None:
+        x = np.arange(len(cum_pl))
+    else:
+        x = np.asarray(time_index)
+        if x.shape[0] != cum_pl.shape[0]:
+            raise ValueError("time_index length must match PL series length")
+    
+    # Create plot
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.plot(x, cum_pl)
+    
+    # Labels and title
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Cumulative Profit / Loss")
+    ax.set_title(title or "Cumulative PL Over Time – Feature 1")
+    
+    # Grid for readability
+    ax.grid(True, linestyle="--", alpha=0.5)
+    
+    return fig, ax
+
 
 def visualize_opt_path_bary(path_bary, pscores, title=None, dirpath=None):
     """

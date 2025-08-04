@@ -787,6 +787,11 @@ class T_node:
 
 		return lcl_cnt
 	
+	def __eq__(self, other):
+		if not isinstance(other, T_node):
+			return NotImplemented
+		return (get_oplist(self) == get_oplist(other))
+	
 	def copy(
 		self
 	):
