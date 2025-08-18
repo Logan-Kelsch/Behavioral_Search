@@ -165,6 +165,48 @@ def generate_solarr_atrplr(
 
 	return vect_exit
 
+def generate_solarr_atrplr_asatr(
+	price_data	:	np.ndarray,
+	atr_thresh	:	float,
+	ln_plratio	:	float,
+	direction	:	int	=	1,
+	atr_window	:	int	=	7
+)	->	np.ndarray:
+	
+	'''
+	This function first collects the SIMPLE ATR of the data
+	The simple ATR is the average High-Low of each candle averaged over past (atr_window) candles.
+
+	This function then searches forward in time for which direction exits first 
+	in terms of traditional PL-ratio
+	'''
+
+	#first collect the true range vector
+	vect_tr = price_data[:, 1] - price_data[:, 2]
+	
+	#collect the ATR vector and multiply by threshold (ident is 1)
+	vect_atr = bn.move_mean(vect_tr, window=atr_window, min_count=1) * atr_thresh
+
+	#collect the up/down thresholds
+	#direction comes in as 1 if bullish ratio skewing
+	#direction comes in as 0 if bearish ratio skewing
+	up_atr = np.exp(ln_plratio) if direction==1 else 1
+	dn_atr = np.exp(ln_plratio) if direction==0 else 1
+	
+	#collect the forward walk exit vector (boolean)
+	vect_exit = _exit_signals_kernel(
+		price_data[:, 1], price_data[:, 2], price_data[:, 3],
+		vect_atr, up_atr, dn_atr
+	)
+
+	pos = np.where(vect_exit==1)
+	neg = np.where(vect_exit==0)
+	
+	vect_exit[pos] =  vect_atr[pos] * up_atr
+	vect_exit[neg] = -vect_atr[neg] * dn_atr
+
+	return vect_exit
+
 
 #using numba to optimize these loops
 @njit
@@ -194,65 +236,116 @@ def _exit_signals_kernel(high, low, close, atr, up_atr, dn_atr):
 
 @njit
 def _exit_pl_kernel(high, low, close, atr, up_atr, dn_atr):
-    """
-    For each entry at close[i], compute the profit or loss (PL) of the trade if
-    it exits on either the profit target or stop-loss threshold, both defined
-    as multiples of ATR. If both thresholds are hit in the same bar, or if neither
-    is hit by the end of the series, returns np.nan for that entry.
+	"""
+	For each entry at close[i], compute the profit or loss (PL) of the trade if
+	it exits on either the profit target or stop-loss threshold, both defined
+	as multiples of ATR. If both thresholds are hit in the same bar, or if neither
+	is hit by the end of the series, returns np.nan for that entry.
 
-    Parameters
-    ----------
-    high : 1d array of float64
-        Series of high prices.
-    low : 1d array of float64
-        Series of low prices.
-    close : 1d array of float64
-        Series of close prices (entry prices).
-    atr : 1d array of float64
-        Series of average true range values.
-    up_atr : float64
-        Multiplier for the profit-target ATR (profit threshold = close + up_atr * atr).
-    dn_atr : float64
-        Multiplier for the stop-loss ATR (stop threshold = close - dn_atr * atr).
+	Parameters
+	----------
+	high : 1d array of float64
+		Series of high prices.
+	low : 1d array of float64
+		Series of low prices.
+	close : 1d array of float64
+		Series of close prices (entry prices).
+	atr : 1d array of float64
+		Series of average true range values.
+	up_atr : float64
+		Multiplier for the profit-target ATR (profit threshold = close + up_atr * atr).
+	dn_atr : float64
+		Multiplier for the stop-loss ATR (stop threshold = close - dn_atr * atr).
 
-    Returns
-    -------
-    pl : 1d array of float64
-        Profit (positive) or loss (negative) for each entry; np.nan if ambiguous
-        (both thresholds hit in the same bar) or never hit.
-    """
-    N = high.shape[0]
-    pl = np.empty(N, np.float64)
-    # initialize all outputs to NaN
-    pl[:] = np.nan
+	Returns
+	-------
+	pl : 1d array of float64
+		Profit (positive) or loss (negative) for each entry; np.nan if ambiguous
+		(both thresholds hit in the same bar) or never hit.
+	"""
+	N = high.shape[0]
+	pl = np.empty(N, np.float64)
+	# initialize all outputs to NaN
+	pl[:] = np.nan
 
-    for i in range(N):
-        entry_price = close[i]
-        up_thr = entry_price + up_atr * atr[i]
-        dn_thr = entry_price - dn_atr * atr[i]
+	for i in range(N):
+		entry_price = close[i]
+		up_thr = entry_price + up_atr * atr[i]
+		dn_thr = entry_price - dn_atr * atr[i]
 
-        # scan forward until one of the thresholds is triggered
-        for j in range(i + 1, N):
-            hi = high[j]
-            lo = low[j]
+		# scan forward until one of the thresholds is triggered
+		for j in range(i + 1, N):
+			hi = high[j]
+			lo = low[j]
 
-            # ambiguous: both profit and stop‐loss hit in same bar
-            if hi >= up_thr and lo <= dn_thr:
-                pl[i] = np.nan
-                break
-            # profit target first
-            elif hi >= up_thr:
-                pl[i] = up_thr - entry_price
-                break
-            # stop‐loss first
-            elif lo <= dn_thr:
-                pl[i] = dn_thr - entry_price
-                break
+			# ambiguous: both profit and stop‐loss hit in same bar
+			if hi >= up_thr and lo <= dn_thr:
+				pl[i] = np.nan
+				break
+			# profit target first
+			elif hi >= up_thr:
+				pl[i] = up_thr - entry_price
+				break
+			# stop‐loss first
+			elif lo <= dn_thr:
+				pl[i] = dn_thr - entry_price
+				break
 
-        # if loop completes without break, pl[i] stays NaN
+		# if loop completes without break, pl[i] stays NaN
 
-    return pl
+	return pl
 
+import numpy as np
+from numba import njit, prange
+
+@njit(parallel=True)
+def _best_precision_scores_numba(
+	forest:      np.ndarray,
+	y_true:      np.ndarray,
+	valid_idx:   np.ndarray
+) -> np.ndarray:
+	"""
+	Numba-accelerated computation of best precision per feature.
+	forest:    (n_samples, n_features) array of feature values
+	y_true:    (m_valid,) int8 array of ground truth labels
+	valid_idx: (m_valid,) int64 array of sample indices corresponding to y_true
+	Returns:
+		best_precisions: (n_features,) array where each entry is the highest
+						 precision (tp / (tp + fp)) achievable by thresholding
+						 the feature either >0 or <0.
+	"""
+	_, n_features = forest.shape
+	best_precisions = np.zeros(n_features, dtype=np.float64)
+
+	for j in prange(n_features):
+		best = 0.0
+		# try both sign-based thresholds
+		for pattern in range(2):
+			tp = 0
+			fp = 0
+
+			# accumulate tp and fp over valid samples
+			for idx_k, t in enumerate(valid_idx):
+				val = forest[t, j]
+				# pattern 0: predict 1 if val > 0; pattern 1: predict 1 if val < 0
+				if (pattern == 0 and val > 0.0) or (pattern == 1 and val < 0.0):
+					# predicted positive
+					if y_true[idx_k] == 1:
+						tp += 1
+					else:
+						fp += 1
+				# negatives do not affect precision numerator/denominator
+
+			# compute precision = tp / (tp + fp)
+			denom = tp + fp
+			prec = tp / denom if denom > 0 else 0.0
+
+			if prec > best:
+				best = prec
+
+		best_precisions[j] = best
+
+	return best_precisions
 
 
 @njit(parallel=True)
@@ -391,71 +484,71 @@ import math
 
 @njit(parallel=True)
 def _prec_inconsistency_numba(
-    preds: np.ndarray,
-    y_true: np.ndarray,
-    valid_idx: np.ndarray,
-    n_chunks: int,
-    eps: float = 1e-9
+	preds: np.ndarray,
+	y_true: np.ndarray,
+	valid_idx: np.ndarray,
+	n_chunks: int,
+	eps: float = 1e-9
 ) -> np.ndarray:
-    """
-    Numba‐accelerated inconsistency score for per-feature binary predictions,
-    restricted to valid_idx, split into n_chunks. Returns an (n_features,) array
-    in [0,1], where 0 = perfectly consistent, 1 = perfectly inconsistent.
-    """
-    m_valid = valid_idx.shape[0]
-    n_features = preds.shape[1]
-    inconsistency = np.empty(n_features, dtype=np.float64)
+	"""
+	Numba‐accelerated inconsistency score for per-feature binary predictions,
+	restricted to valid_idx, split into n_chunks. Returns an (n_features,) array
+	in [0,1], where 0 = perfectly consistent, 1 = perfectly inconsistent.
+	"""
+	m_valid = valid_idx.shape[0]
+	n_features = preds.shape[1]
+	inconsistency = np.empty(n_features, dtype=np.float64)
 
-    # how many samples per chunk
-    base = m_valid // n_chunks
-    rem  = m_valid - base * n_chunks
+	# how many samples per chunk
+	base = m_valid // n_chunks
+	rem  = m_valid - base * n_chunks
 
-    for f in prange(n_features):
-        sum_p  = 0.0     # Σ precision
-        sum_p2 = 0.0     # Σ precision^2
-        cnt    = 0.0     # how many bins had ≥1 prediction
-        start  = 0
+	for f in prange(n_features):
+		sum_p  = 0.0     # Σ precision
+		sum_p2 = 0.0     # Σ precision^2
+		cnt    = 0.0     # how many bins had ≥1 prediction
+		start  = 0
 
-        for c in range(n_chunks):
-            size = base + (1 if c < rem else 0)
-            end  = start + size
+		for c in range(n_chunks):
+			size = base + (1 if c < rem else 0)
+			end  = start + size
 
-            tp = 0.0
-            fp = 0.0
-            for k in range(start, end):
-                idx = valid_idx[k]
-                pred = preds[idx, f]
-                # skip NaNs (works for floats & ints)
-                if pred != pred:
-                    continue
-                if pred == 1.0:
-                    if y_true[k] == 1.0:
-                        tp += 1.0
-                    else:
-                        fp += 1.0
+			tp = 0.0
+			fp = 0.0
+			for k in range(start, end):
+				idx = valid_idx[k]
+				pred = preds[idx, f]
+				# skip NaNs (works for floats & ints)
+				if pred != pred:
+					continue
+				if pred == 1.0:
+					if y_true[k] == 1.0:
+						tp += 1.0
+					else:
+						fp += 1.0
 
-            denom = tp + fp
-            if denom > 0.0:
-                p = tp / denom
-                sum_p  += p
-                sum_p2 += p * p
-                cnt    += 1.0
+			denom = tp + fp
+			if denom > 0.0:
+				p = tp / denom
+				sum_p  += p
+				sum_p2 += p * p
+				cnt    += 1.0
 
-            start = end
+			start = end
 
-        if cnt > 0.0:
-            # mean precision μ
-            mp = sum_p / cnt
-            # variance = E[p^2] - μ^2
-            var = (sum_p2 / cnt) - (mp * mp)
-            sd  = math.sqrt(var) if var > 0.0 else 0.0
-            # inconsistency = (σ + eps) / (μ + σ + eps)
-            inconsistency[f] = (sd + eps) / (mp + sd + eps)
-        else:
-            # never predicted ⇒ treat as maximally inconsistent
-            inconsistency[f] = 1.0
+		if cnt > 0.0:
+			# mean precision μ
+			mp = sum_p / cnt
+			# variance = E[p^2] - μ^2
+			var = (sum_p2 / cnt) - (mp * mp)
+			sd  = math.sqrt(var) if var > 0.0 else 0.0
+			# inconsistency = (σ + eps) / (μ + σ + eps)
+			inconsistency[f] = (sd + eps) / (mp + sd + eps)
+		else:
+			# never predicted ⇒ treat as maximally inconsistent
+			inconsistency[f] = 1.0
 
-    return inconsistency
+	return inconsistency
 
 
 
@@ -514,7 +607,7 @@ def evaluate_forest_atrplr(
 	y_true = solarr[valid_mask].astype(np.int8)
 
 	#call the JIT-compiled kernel
-	f1s = _best_f1_scores_numba(forest, y_true, valid_idx)
+	f1s = _best_precision_scores_numba(forest, y_true, valid_idx)
 
 	if(bal_coef):
 		f1s:np.ndarray = f1s * (1-binary_imbalance_coefficient(forest[valid_mask], solarr[valid_mask])**2)
@@ -526,90 +619,101 @@ def evaluate_forest_atrplr(
 	return f1s
 	
 def evaluate_tree_atrplr_pl(forest: np.ndarray, pl: np.ndarray):
-    """
-    For each feature column in `forest`, evaluate four binary thresholds:
-      1) feature > its mean
-      2) feature < its mean
-      3) feature > 0
-      4) feature < 0
-    Multiply each mask by `pl`, sum the result (ignoring NaNs), and select
-    the mask giving the highest sum. Preserves NaNs from `pl`.
-    
-    Parameters
-    ----------
-    forest : np.ndarray, shape (n_samples, n_features)
-        Your candidate‐feature matrix.
-    pl : np.ndarray, shape (n_samples,)
-        Profit/Loss per instance (may contain NaNs).
-    
-    Returns
-    -------
-    best_pls : List[np.ndarray]
-        For each feature, the masked PL array under the best threshold.
-    best_sums : np.ndarray, shape (n_features,)
-        The max sum of masked PL for each feature.
-    best_thresholds : List[str]
-        Which threshold won for each feature: one of (">mean","<mean",">0","<0").
-    """
-    n_samples, n_features = forest.shape
-    best_pls = []
-    best_sums = np.empty(n_features, dtype=np.float64)
-    best_thresholds = []
-    
-    for j in range(n_features):
-        feat = forest[:, j]
-        mean = np.nanmean(feat)
-        
-        # build masks and names
-        masks = [
-            feat > mean,
-            feat < mean,
-            feat > 0,
-            feat < 0,
-        ]
-        names = [">mean", "<mean", ">0", "<0"]
-        
-        # track best
-        best_sum = -np.inf
-        best_pl = None
-        best_name = None
-        
-        for mask, name in zip(masks, names):
-            # cast to 0/1 float mask
-            m = mask.astype(np.float64)
-            masked_pl = pl * m
-            s = np.nansum(masked_pl)
-            if s > best_sum:
-                best_sum = s
-                best_pl = masked_pl
-                best_name = name
-        
-        best_pls.append(best_pl)
-        best_sums[j] = best_sum
-        best_thresholds.append(best_name)
-    
-    return best_pls, best_sums, best_thresholds
+	"""
+	For each feature column in `forest`, evaluate four binary thresholds:
+	  1) feature > its mean
+	  2) feature < its mean
+	  3) feature > 0
+	  4) feature < 0
+	Multiply each mask by `pl`, sum the result (ignoring NaNs), and select
+	the mask giving the highest sum. Preserves NaNs from `pl`.
+	
+	Parameters
+	----------
+	forest : np.ndarray, shape (n_samples, n_features)
+		Your candidate‐feature matrix.
+	pl : np.ndarray, shape (n_samples,)
+		Profit/Loss per instance (may contain NaNs).
+	
+	Returns
+	-------
+	best_pls : List[np.ndarray]
+		For each feature, the masked PL array under the best threshold.
+	best_sums : np.ndarray, shape (n_features,)
+		The max sum of masked PL for each feature.
+	best_thresholds : List[str]
+		Which threshold won for each feature: one of (">mean","<mean",">0","<0").
+	"""
+	n_samples, n_features = forest.shape
+	best_pls = []
+	best_sums = np.empty(n_features, dtype=np.float64)
+	best_thresholds = []
+	
+	for j in range(n_features):
+		feat = forest[:, j]
+		mean = np.nanmean(feat)
+		
+		# build masks and names
+		masks = [
+			feat > mean,
+			feat < mean,
+			feat > 0,
+			feat < 0,
+		]
+		names = [">mean", "<mean", ">0", "<0"]
+		
+		# track best
+		best_sum = -np.inf
+		best_pl = None
+		best_name = None
+		
+		for mask, name in zip(masks, names):
+			# cast to 0/1 float mask
+			m = mask.astype(np.float64)
+			masked_pl = pl * m
+			s = np.nansum(masked_pl)
+			if s > best_sum:
+				best_sum = s
+				best_pl = masked_pl
+				best_name = name
+		
+		best_pls.append(best_pl)
+		best_sums[j] = best_sum
+		best_thresholds.append(best_name)
+	
+	return best_pls, best_sums, best_thresholds
 
 
 	
 
 def binary_imbalance_coefficient(
-	forest	:	np.ndarray,
-	sol_arr	:	np.ndarray
-):
+	forest:  np.ndarray,
+	sol_arr:  np.ndarray
+) -> np.ndarray:
+	"""
+	This function is used to create a coefficient representing
+	desirable punishment for unreasonable market participation.
+	This function considers overparticipation (more frequent than solution)
+	and considers underparticipation (subject to test-data anomalies)
+
+	Flat-bottom imbalance loss, more efficiently:
+	  loss = |p_feats - clip(p_feats, lower, p_sol)|
+
+	Any p_feats in [lower, p_sol] → zero; 
+	below → lower - p_feats; above → p_feats - p_sol.
+	"""
+	# flatten solution and sanity‐check
 	sol = sol_arr.ravel()
 	if forest.shape[0] != sol.shape[0]:
-		raise ValueError(f"Number of samples mismatch: "
-						 f"{forest.shape[0]} vs {sol.shape[0]}")
+		raise ValueError(f"Sample mismatch: {forest.shape[0]} vs {sol.shape[0]}")
 
-	# fraction of ones in solution
-	p_sol = sol.mean()
-
-	# fraction of ones in each feature (mean over rows)
+	# compute rates
+	p_sol   = sol.mean()
+	lower   = p_sol/4
 	p_feats = forest.mean(axis=0)
 
-	# imbalance coefficient = absolute difference in 1‑rates
-	return np.abs(p_feats - p_sol)
+	# single‐line flat‐bottom: clip then abs diff
+	return np.abs(p_feats - np.clip(p_feats, lower, p_sol))
 
 
 def get_best_forest(
@@ -644,6 +748,16 @@ def get_best_forest(
 	#also return the scores from each
 
 	return best_forest, best_scores
+
+def meta_bipopvote(
+	pred_arrs	:	np.ndarray,
+	threshold	:	float	=	0.5
+):
+	'''
+	This function returns an array of the popular vote for an array of output model predictions
+	'''
+	return (pred_arrs.mean(axis=1) >= threshold).astype(int)
+	
 
 
 from keras.callbacks import EarlyStopping

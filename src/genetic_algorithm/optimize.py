@@ -597,7 +597,7 @@ def optimize_keystone(
 
 		del best_forest, best_scores, x_
 
-	gif_title = str(f"Best_F1_{round(max(p_scores), 3)}")
+	gif_title = str(f"Best_L_{round(max(p_scores), 3)}")
 	visualization.visualize_opt_path_3d(path, pscr, title=gif_title, dirpath=iterpath,
         frames=90, interval=150)
 			
@@ -874,7 +874,7 @@ def merc_from_2d(
 
 import math
 
-def propose_step_anytime2d(val_1, val_2, step_size, theta_offset:float=-1):
+def propose_step_anytime2d(val_1, val_2, step_size, theta_offset:float=-1, rot_atr:bool=False):
 	"""
 	Return (new_free, new_pos) such that
 	  sqrt((new_free-val_free)^2 + (new_pos-val_pos)^2) == step_size,
@@ -912,7 +912,10 @@ def propose_step_anytime2d(val_1, val_2, step_size, theta_offset:float=-1):
 
 		curve_offset = 3 * math.pi / 4
 
-		dcos = step_size * math.cos(th - curve_offset)
+		if(rot_atr==False):
+			dcos = step_size * math.cos(random.random() * math.pi) / 2
+		else:
+			dcos = step_size * math.cos(th - curve_offset)
 		dsin = step_size * math.sin(th - curve_offset)
 
 		return val_1 + dcos, val_2 + dsin
@@ -1079,4 +1082,8 @@ if __name__ == "__main__":
 	#optimize_reproduction()
 
 	for i in range(8):
-		optimize_keystone(init_size=100, iterations=50, atr_thresh=0.4, plratio=3, init_dpth=5, init_lambda=(0.0,0.2,0.8),step_frac=round((i+1)/25, 3))
+		optimize_keystone(init_size=200, iterations=50, atr_thresh=1.5, plratio=2.5, init_dpth=5, init_lambda=(0.0,0.25,0.75),step_frac=round((i+1)/25, 3))
+	for i in range(8):
+		optimize_keystone(init_size=200, iterations=50, atr_thresh=1.5, plratio=4, init_dpth=5, init_lambda=(0.0,0.25,0.75),step_frac=round((i+1)/25, 3))
+	for i in range(8):
+		optimize_keystone(init_size=200, iterations=50, atr_thresh=1.5, plratio=8, init_dpth=5, init_lambda=(0.0,0.25,0.75),step_frac=round((i+1)/25, 3))
