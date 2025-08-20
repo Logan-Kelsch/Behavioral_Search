@@ -709,12 +709,111 @@ def binary_imbalance_coefficient(
 
 	# compute rates
 	p_sol   = sol.mean()
-	lower   = p_sol/4
+	lower   = p_sol/10
 	p_feats = forest.mean(axis=0)
 
 	# single‐line flat‐bottom: clip then abs diff
 	return np.abs(p_feats - np.clip(p_feats, lower, p_sol))
 
+def shapley_ev_allvote(
+	X: np.ndarray,           # (n_samples, n_models) in {0,1}
+	y_true: np.ndarray,      # (n_samples,) in {0,1}
+	R: float = 5.0,
+	n_permutations: int = 256,
+	seed: int | None = None,
+	return_kind: str = "shapley"   # "both", "shapley", or "importance"
+):
+	"""
+	Monte Carlo Shapley values for model contributions to an ALL-vote (AND) ensemble,
+	where coalition predictions are 1 iff *all* included models predict 1.
+	Score = EV from precision: EV = (R+1)*P - 1.
+
+	Returns
+	-------
+	If return_kind == "both": dict with keys:
+		- "shapley": np.ndarray (n_models,) raw Shapley contributions (EV units)
+		- "importance": np.ndarray (n_models,) normalized to [0,1] (positive part)
+		- "ev_full": float, EV of the full coalition (all models)
+	If "shapley": np.ndarray (n_models,)
+	If "importance": np.ndarray (n_models,)
+	"""
+
+	if(X.size == 0):
+		return np.array([])
+	X = (X.astype(np.uint8) != 0)
+	y = (np.asarray(y_true).astype(np.uint8) != 0)
+
+	rng = np.random.default_rng(seed)
+	n_samples, n_models = X.shape
+
+	# ---- helper to compute EV from TP/FP (precision-only) ----
+	def ev_from_counts(tp: float, fp: float) -> float:
+		denom = tp + fp
+		if denom <= 0.0:
+			return 0.0
+		P = tp / denom
+		return P * (R + 1.0) - 1.0
+
+	# Precompute full-coalition EV (AND across all models)
+	p_full = X.all(axis=1)
+	tp_full = float(np.sum(p_full & y))
+	fp_full = float(np.sum(p_full & (~y)))
+	ev_full = ev_from_counts(tp_full, fp_full)
+
+	# For incremental updates, we keep the current coalition mask (boolean over samples)
+	# and track EV via TP/FP counts for that mask.
+	# NOTE: Base coalition (empty set) uses vacuous truth for AND → all True mask.
+	# Adding first model j yields mask = X[:, j], as desired.
+
+	shapley_sum = np.zeros(n_models, dtype=np.float64)
+
+	# Optional precomputations to reduce repeated ANDs with y / ~y
+	X_and_y    = X & y[:, None]     # shape: (n_samples, n_models)
+	X_and_ny   = X & (~y)[:, None]
+
+	for _ in range(n_permutations):
+		order = rng.permutation(n_models)
+
+		# start from empty coalition (mask = all True)
+		mask = np.ones(n_samples, dtype=bool)
+		# counts for empty coalition
+		tp_cur = float(np.sum(mask & y))
+		fp_cur = float(np.sum(mask & (~y)))
+		ev_cur = ev_from_counts(tp_cur, fp_cur)
+
+		for j in order:
+			# New mask = old mask AND model j's predictions
+			# We need TP/FP for the new mask quickly.
+			# TP_next = sum(mask & X[:,j] & y) = sum((mask & y) & X[:,j])
+			# FP_next = sum(mask & X[:,j] & ~y) = sum((mask & ~y) & X[:,j])
+
+			# Compute masked sums via boolean indexing (fast in NumPy)
+			# First restrict to current mask; then sum X_and_y / X_and_ny columns j
+			idx = mask
+			tp_next = float(np.sum(X_and_y[idx, j]))
+			fp_next = float(np.sum(X_and_ny[idx, j]))
+
+			ev_next = ev_from_counts(tp_next, fp_next)
+			marginal = ev_next - ev_cur
+			shapley_sum[j] += marginal
+
+			# Advance coalition
+			# (mask & X[:, j]) updates in-place efficiently
+			mask[idx] &= X[idx, j]
+			tp_cur, fp_cur, ev_cur = tp_next, fp_next, ev_next
+
+	shapley = shapley_sum / float(n_permutations)
+
+	# Importance on [0,1]: normalize positive contributions
+	pos = np.clip(shapley, 0.0, None)
+	imax = pos.max()
+	importance = (pos / imax) if imax > 0 else np.zeros_like(pos)
+
+	if return_kind == "shapley":
+		return shapley
+	if return_kind == "importance":
+		return importance
+	return {"shapley": shapley, "importance": importance, "ev_full": ev_full}
 
 def get_best_forest(
 	forfeat_batches	:	list,
@@ -748,6 +847,11 @@ def get_best_forest(
 	#also return the scores from each
 
 	return best_forest, best_scores
+
+def meta_biconsensus(
+	X	:	np.ndarray
+):
+	return X.all(axis=1).astype(int)
 
 def meta_bipopvote(
 	pred_arrs	:	np.ndarray,

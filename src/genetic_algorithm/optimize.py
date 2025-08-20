@@ -851,6 +851,112 @@ def optimize_reproduction(
 
 	return best_lambda, best_loss, np.array(path), np.array(pscr)
 
+def anytime_ensemble_builder(
+	forest		:	list	=	[],
+	atr_coef	:	float|tuple	=	1,
+	ln_plratio	:	float|tuple	=	5,
+	iterations	:	int	=	20,
+	nsmbl_metric:	Literal['shapley','importance']	=	'shapley',
+	svvl_thresh	:	float	=	0.0,
+	strikes		:	int	=	3
+):
+	
+	# NOTE SIGNAL INITIALIZATION NOTE #
+	import signal
+	import sys
+	stop_requested = False
+
+	def request_stop(sig, frame):
+		global stop_requested
+		print("PROGRAM STOP REQUESTED. COMPLETING ITERATION AND SAVING ENSEMBLE.")
+		stop_requested = True
+
+	signal.signal(signal.SIGINT, request_stop)
+	# NOTE END SIGNAL INITIALIZATION NOTE #
+
+	#go get working data
+	data = pd.read_csv("../../data/ES15.csv")
+	x_raw = data.values.copy()
+	del data
+
+	strike_arr = np.zeros(len(forest), dtype=int)
+
+	if(type(atr_coef) == tuple):
+		local_atr_coef = (atr_coef[0] + atr_coef[1]) / 2
+	else:
+		local_atr_coef = atr_coef
+
+	if(type(ln_plratio) == tuple):
+		local_ln_plratio = (ln_plratio[0] + ln_plratio[1]) / 2
+	else:
+		local_ln_plratio = ln_plratio
+
+	R = np.exp(local_ln_plratio)
+
+	x_ = transforms.forest2features(forest, x_raw)
+	y_ = evaluation.generate_solarr_atrplr(x_raw, local_atr_coef, np.log(R))
+
+	scores = evaluation.shapley_ev_allvote(x_, y_, R)
+	strike_arr[np.where(scores<=0)] += 1
+	strike_arr[np.where(scores >0)] = 0
+
+
+	try:
+		for iter in range(iterations):
+
+			if(type(atr_coef) == tuple):
+				local_atr_coef = random.uniform(atr_coef[0], atr_coef[1])
+			else:
+				local_atr_coef = atr_coef
+
+			if(type(ln_plratio) == tuple):
+				local_ln_plratio = random.unifrom(ln_plratio[0], ln_plratio[1])
+			else:
+				local_ln_plratio = ln_plratio
+			
+			#go and get some new feature using local tspace vals
+			new_feat = 0
+
+			#newly created feature will either be replacing a degenerate feature of the ensemble
+			#or it will be appended to the ensemble if all features are in good health
+
+			#check to see if case is replacement by getting location of, or -1 if no replacement
+			deg_idx = int(np.argmax(strike_arr) if strike_arr.size and strike_arr.max() >= strikes else -1)
+
+			#this case is for replacement
+			if(deg_idx>=0):
+				forest[deg_idx] = new_feat
+
+				x_ = transforms.forest2features(forest, x_raw)
+				scores = evaluation.shapley_ev_allvote(x_, y_, R)
+				strike_arr[np.where(scores<=0)] += 1
+				strike_arr[np.where(scores >0)] = 0
+			
+			#this case is for appending of a new feature to ensemble
+			else:
+				forest.append(new_feat)
+
+				x_ = transforms.forest2features(forest, x_raw)
+				scores = evaluation.shapley_ev_allvote(x_, y_, R)
+				strike_arr = np.append(strike_arr, 0)
+				strike_arr[np.where(scores<=0)] += 1
+				strike_arr[np.where(scores >0)]  = 0
+
+
+			ypred = evaluation.meta_biconsensus(x_)
+			ps = np.sum(y_ & ypred)/np.sum(ypred) if np.sum(ypred)>0 else 0.0
+			EV = (R+1) * ps - 1
+
+			print(f'Iter #{iter+1}: EV = {EV:.6f}')
+
+
+			if(stop_requested):
+				break
+	
+	finally:
+		pass
+
+
 
 def merc_from_2d(
 	point
