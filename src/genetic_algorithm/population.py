@@ -4,13 +4,17 @@ import numpy as np
 
 def generate_random_forest(
 	size	:	int	=	100,
-	init_m	:	int =	5
+	init_m	:	int|tuple =	5
 ) -> list:
 	population = []
 
 	for i in range(size):
+		if(type(init_m)==tuple):
+			muts = np.random.randint(init_m[0], init_m[1]+1)
+		else:
+			muts = init_m
 		new_tree = transforms.T_node(random=True)
-		for mutation in range(init_m):
+		for mutation in range(muts):
 			new_tree.mutate_tree()
 		population.append(new_tree)
 

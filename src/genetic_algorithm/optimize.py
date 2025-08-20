@@ -854,10 +854,11 @@ def optimize_reproduction(
 def anytime_ensemble_builder(
 	forest		:	list	=	[],
 	atr_coef	:	float|tuple	=	1,
-	ln_plratio	:	float|tuple	=	5,
-	iterations	:	int	=	20,
+	ln_plratio	:	float|tuple	=	np.log(5),
+	feat_iters	:	int	=	100,
+	nsmb_iters	:	int	=	20,
 	nsmbl_metric:	Literal['shapley','importance']	=	'shapley',
-	svvl_thresh	:	float	=	0.0,
+	strike_thr	:	float	=	0.0,
 	strikes		:	int	=	3
 ):
 	
@@ -896,13 +897,17 @@ def anytime_ensemble_builder(
 	x_ = transforms.forest2features(forest, x_raw)
 	y_ = evaluation.generate_solarr_atrplr(x_raw, local_atr_coef, np.log(R))
 
-	scores = evaluation.shapley_ev_allvote(x_, y_, R)
-	strike_arr[np.where(scores<=0)] += 1
-	strike_arr[np.where(scores >0)] = 0
+	_, to_flip = evaluation.evaluate_forest_adjev(x_, y_, R)
+	for t in range(len(forest)):
+		if(to_flip[t]==1):
+			forest[t] = forest[t].flip_sign()
 
+	scores = evaluation.shapley_ev_allvote(x_, y_, R, return_kind=nsmbl_metric)
+	strike_arr[np.where(scores<=strike_thr)] += 1
+	strike_arr[np.where(scores >strike_thr)]  = 0
 
 	try:
-		for iter in range(iterations):
+		for iter in range(nsmb_iters):
 
 			if(type(atr_coef) == tuple):
 				local_atr_coef = random.uniform(atr_coef[0], atr_coef[1])
@@ -915,7 +920,11 @@ def anytime_ensemble_builder(
 				local_ln_plratio = ln_plratio
 			
 			#go and get some new feature using local tspace vals
-			new_feat = 0
+			#this feature comes in already right side up, (>0 means signal)
+			new_feat = generate_local_solution(
+				x_raw, iterations=feat_iters, 
+				atr_thresh=local_atr_coef, ln_plratio=local_ln_plratio
+			)
 
 			#newly created feature will either be replacing a degenerate feature of the ensemble
 			#or it will be appended to the ensemble if all features are in good health
@@ -928,26 +937,27 @@ def anytime_ensemble_builder(
 				forest[deg_idx] = new_feat
 
 				x_ = transforms.forest2features(forest, x_raw)
-				scores = evaluation.shapley_ev_allvote(x_, y_, R)
-				strike_arr[np.where(scores<=0)] += 1
-				strike_arr[np.where(scores >0)] = 0
+				scores = evaluation.shapley_ev_allvote(x_, y_, R, return_kind=nsmbl_metric)
+				strike_arr[np.where(scores<=strike_thr)] += 1
+				strike_arr[np.where(scores >strike_thr)] = 0
 			
 			#this case is for appending of a new feature to ensemble
 			else:
 				forest.append(new_feat)
 
 				x_ = transforms.forest2features(forest, x_raw)
-				scores = evaluation.shapley_ev_allvote(x_, y_, R)
+				scores = evaluation.shapley_ev_allvote(x_, y_, R, return_kind=nsmbl_metric)
 				strike_arr = np.append(strike_arr, 0)
-				strike_arr[np.where(scores<=0)] += 1
-				strike_arr[np.where(scores >0)]  = 0
+				strike_arr[np.where(scores<=strike_thr)] += 1
+				strike_arr[np.where(scores >strike_thr)]  = 0
 
 
 			ypred = evaluation.meta_biconsensus(x_)
 			ps = np.sum(y_ & ypred)/np.sum(ypred) if np.sum(ypred)>0 else 0.0
 			EV = (R+1) * ps - 1
 
-			print(f'Iter #{iter+1}: EV = {EV:.6f}')
+			print(f'ENSEMBLE Iter #{iter+1}: EV = {EV:.6f}')
+			print(f'Strike Sum: {strike_arr.sum()}')
 
 
 			if(stop_requested):
@@ -955,6 +965,96 @@ def anytime_ensemble_builder(
 	
 	finally:
 		pass
+
+def generate_local_solution(
+	raw_data	:	np.ndarray,
+	init_size	:	int		=	100,
+	init_dpth	:	int|tuple=	(2, 5),
+	iterations	:	int		=	100,
+	init_svvl	:	float	=	0.0,
+	atr_thresh	:	float	=	1,
+	ln_plratio	:	float	=	np.log(5),
+	MRC			:	tuple	=	(0.33, 0.33, 0.34)
+):
+	'''
+	This function will generate a population and
+	optimize based on the EV of the best tree.
+
+	This optimization is local to the provided atr_thresh and ln_plratio (static target-space location)
+
+	This function will go through iterations in a few phases:
+	- first, iterations are used on generating a population containing
+	  a single tree with >=0 EV
+	- second, iterations are used on attempting to reproduce better trees
+	  than the best candidate tree.
+	- - a failed attempt leads candidate forest to be deleted
+	- - a successful attempt leads candidate forest to replace current forest
+	'''
+
+	y = evaluation.generate_solarr_atrplr(raw_data, atr_thresh, ln_plratio)
+
+	rem_iter = iterations
+	crnt_forest = []
+	crnt_scores = []
+	scores = []
+	survival = init_svvl
+
+	#first attempt to generate a forest with ANY tree containing positive adjEV
+	while(rem_iter>0):
+
+		#generate some random forest
+		crnt_forest = poppy.generate_random_forest(init_size, init_dpth)
+		#realize forest
+		x = transforms.forest2features(crnt_forest, raw_data)
+		#score forest
+		crnt_scores, flips = evaluation.evaluate_forest_adjev(x, y, R=np.exp(ln_plratio))
+		
+
+		rem_iter -= 1
+
+		#check to see if population is ready for optimization
+
+		scores.append(crnt_scores.max())
+
+		if(scores[-1] > 0.0):
+			survival = scores[-1]
+			break
+		else:
+			print(f'newgen raiming iters {rem_iter}: random forest failed to survive.')
+
+	#second, attempt to optimize the forest to grow the largest adjEV on a single tree
+	while(rem_iter>0):
+
+		#generate a new forest through scarce MRC reproduction
+		cndt_forest = reproduction.reproduce_scarce(
+			copy.deepcopy(crnt_forest), crnt_scores, 
+			init_size, 0.0, init_dpth, MRC,
+			metric='adjEV'
+		)
+		#realize forest
+		x = transforms.forest2features(crnt_forest, raw_data)
+		#score forest
+		cndt_scores, flips = evaluation.evaluate_forest_adjev(x, y, R=np.exp(ln_plratio))
+
+		scores.append(cndt_scores.max())
+
+		#check to see if the candidate forest is going to replce the current forest
+		if(scores[-1] > survival):
+			crnt_forest = copy.deepcopy(cndt_forest)
+			crnt_scores = copy.deepcopy(cndt_scores)
+
+		rem_iter-=1
+
+		print(f'newgen remaining iters {rem_iter}: LAST {scores[-1]} BEST {survival}')
+
+	best_idx = int(np.argmax(crnt_scores))
+	best_tree:transforms.T_node = copy.deepcopy(crnt_forest[best_idx])
+
+	#check to see if tree needs to be flipped
+	if(flips[best_idx]==1):
+		return best_tree.flip_sign()
+	else:
+		return best_tree
 
 
 
@@ -1187,9 +1287,4 @@ if __name__ == "__main__":
 	print("running...")
 	#optimize_reproduction()
 
-	for i in range(8):
-		optimize_keystone(init_size=200, iterations=50, atr_thresh=1.5, plratio=2.5, init_dpth=5, init_lambda=(0.0,0.25,0.75),step_frac=round((i+1)/25, 3))
-	for i in range(8):
-		optimize_keystone(init_size=200, iterations=50, atr_thresh=1.5, plratio=4, init_dpth=5, init_lambda=(0.0,0.25,0.75),step_frac=round((i+1)/25, 3))
-	for i in range(8):
-		optimize_keystone(init_size=200, iterations=50, atr_thresh=1.5, plratio=8, init_dpth=5, init_lambda=(0.0,0.25,0.75),step_frac=round((i+1)/25, 3))
+	anytime_ensemble_builder(forest=serialization.load_forest(where='allruns.4st'), feat_iters=15)

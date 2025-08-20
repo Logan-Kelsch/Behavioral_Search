@@ -550,8 +550,91 @@ def _prec_inconsistency_numba(
 
 	return inconsistency
 
+@njit(parallel=True, fastmath=True, cache=True)
+def _best_precision_per_feature(X, y):
+	"""
+	X: float64 (n_samples, n_features)
+	y: uint8 (n_samples,)  values in {0,1}
+	Returns:
+	  f_ps: float64 (n_features,)  best precision per feature
+	  flip_idx: uint8 (n_features,) 1 if best is (X[:,j] < 0), else 0 for (X[:,j] > 0)
+	"""
+	n_samples, n_features = X.shape
+	f_ps = np.zeros(n_features, dtype=np.float64)
+	flip_idx = np.zeros(n_features, dtype=np.uint8)
+
+	for j in prange(n_features):
+		tp_pos = 0
+		fp_pos = 0
+		tp_neg = 0
+		fp_neg = 0
+
+		for i in range(n_samples):
+			x = X[i, j]
+			yi = y[i]
+
+			# x > 0 → positive-branch prediction
+			if x > 0.0:
+				if yi == 1:
+					tp_pos += 1
+				else:
+					fp_pos += 1
+			# x < 0 → negative-branch prediction
+			elif x < 0.0:
+				if yi == 1:
+					tp_neg += 1
+				else:
+					fp_neg += 1
+			# x == 0 (or NaN) → no prediction; skip
+
+		denom_pos = tp_pos + fp_pos
+		denom_neg = tp_neg + fp_neg
+
+		prec_pos = (tp_pos / denom_pos) if denom_pos > 0 else 0.0
+		prec_neg = (tp_neg / denom_neg) if denom_neg > 0 else 0.0
+
+		# pick the better of the two; ties favor (>0) branch (flip_idx=0)
+		if prec_neg > prec_pos:
+			f_ps[j] = prec_neg
+			flip_idx[j] = 1  # use X[:,j] < 0
+		else:
+			f_ps[j] = prec_pos
+			flip_idx[j] = 0  # use X[:,j] > 0
+
+	return f_ps, flip_idx
 
 
+def evaluate_forest_adjev(
+	X	:	np.ndarray,
+	y	:	np.ndarray,
+	R	:	float	=	5,
+	balance_precision	:	bool	=	True,
+	balance_frequency	:	bool	=	True,
+	clip_negative_evs	:	bool	=	True
+):
+	#identify valid (non-NaN) indices and extract y_true
+	valid_mask = ~np.isnan(y)
+	valid_idx = np.nonzero(valid_mask)[0].astype(np.int64)
+	y = y[valid_mask].astype(np.int8)
+
+	#collect precision scores and trees to flip
+	ps, flips = _best_precision_per_feature(X, y)
+	
+	#solve for EV
+	EV = (R+1) * ps - 1
+
+	#decay EV if predictions have unreasonable frequency (scarce, excessive)
+	if(balance_frequency):
+		EV *= ((1-binary_imbalance_coefficient(X[valid_idx], y)) ** 2)
+	
+	#decay EV if inconsistent precision in predictions
+	if(balance_precision):
+		EV *= ((1-_prec_inconsistency_numba(X, y, valid_idx, n_chunks=4)) ** 2)
+
+	if(clip_negative_evs):
+		np.clip(EV, 0, None, out=EV)
+
+	return EV, flips
 
 
 def evaluate_forest_atrplr( 
@@ -731,12 +814,14 @@ def shapley_ev_allvote(
 	Returns
 	-------
 	If return_kind == "both": dict with keys:
-		- "shapley": np.ndarray (n_models,) raw Shapley contributions (EV units)
+		- "shapley": np.ndarray (n_models,) raw Shapley  contributions (EV units)
 		- "importance": np.ndarray (n_models,) normalized to [0,1] (positive part)
 		- "ev_full": float, EV of the full coalition (all models)
 	If "shapley": np.ndarray (n_models,)
 	If "importance": np.ndarray (n_models,)
 	"""
+
+	print(f'in shapley_ev_allvote in evaluation: X, y_ shapes: {X.shape} -- {y_true.shape}')
 
 	if(X.size == 0):
 		return np.array([])

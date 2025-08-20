@@ -161,10 +161,11 @@ def demo_constopt_nn(
 	return best_forest, best_scores, score_NN
 
 
-def random_sample_n_inverse_weighted(
+def random_sample_n_weighted(
 	scores	:	list,
 	n		:	int,
-	let_dupe:	bool	=	True
+	let_dupe:	bool	=	True,
+	inverse	:	bool	=	True
 ):
 	'''
 	This function returns the indices of selected items.
@@ -175,8 +176,11 @@ def random_sample_n_inverse_weighted(
 
 	raw_scores = scores.copy()
 	raw_scores_rnd = [round(x, 8) for x in raw_scores]
-	inv_scores = [1/x for x in raw_scores]
-	
+	if(inverse):
+		inv_scores = [1/x for x in raw_scores]
+	else:
+		inv_scores = raw_scores
+
 	wscore_vol = 0
 	for invs in inv_scores:
 		wscore_vol+=invs

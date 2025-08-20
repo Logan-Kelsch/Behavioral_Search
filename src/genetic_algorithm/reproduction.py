@@ -4,37 +4,58 @@ import math
 import copy
 import statistics
 import utility as utility
+from typing import Literal
+import numpy as np
 
 def reproduce_scarce(
 	forest	:	list,
 	scores	:	list,
 	size	:	int,
 	sthresh	:	float,
-	dflt_dpth	:	int	=	None,
-	MRC		:	tuple	=	(0.33, 0.33, 0.34)
+	dflt_dpth	:	int|tuple	=	None,
+	MRC		:	tuple	=	(0.33, 0.33, 0.34),
+	metric	:	Literal['adjEV','loss'] = 'loss'
 ):
 
+	match(metric):
+		case 'loss':
+			scored_forests = sorted(zip(forest, scores), key=lambda pair: pair[1])
+			sorted_forest, sorted_scores = map(list, zip(*scored_forests))
+		case 'adjEV':
+			scores = list(np.exp(scores))
+			scored_forests = sorted(zip(forest, scores), key=lambda pair: pair[1], reverse=True)
+			sorted_forest, sorted_scores = map(list, zip(*scored_forests))
 
-	scored_forests = sorted(zip(forest, scores), key=lambda pair: pair[1])
-	sorted_forest, sorted_scores = map(list, zip(*scored_forests))
 
-
+	#count how many trees are implied elite from their scores
 	i = 0
 	while(i<size):
-		if(sorted_scores[i]>sthresh):
-			break
+		match(metric):
+			case 'loss':
+				if(sorted_scores[i]>sthresh):
+					break
+			case 'adjEV':
+				if(sorted_scores[i]<=sthresh):
+					break
 		i+=1
 	
 	num_offspring = size-i
 
-	m_size = math.floor(num_offspring*MRC[0])
-	c_size = math.floor(num_offspring*MRC[2])
+	m_size = int(num_offspring*MRC[0])
+	c_size = int(num_offspring*MRC[2])
 	r_size = size - m_size - c_size
 
-	new_forest = copy.deepcopy(sorted_forest[:i])
+	new_forest = copy.deepcopy(sorted_forest[:i+1])
+
+	#make sure we are inverting scores according to derivative of desirable scores
+	match(metric):
+		case 'loss':
+			invert_weights = True
+		case 'adjEV':
+			invert_weights = False
 
 	#pick random trees from inverse transform sampling of scores
-	m_idx = utility.random_sample_n_inverse_weighted(sorted_scores, m_size)
+	m_idx = utility.random_sample_n_weighted(sorted_scores, m_size, inverse=invert_weights)
 
 	for m in m_idx:
 
@@ -54,7 +75,7 @@ def reproduce_scarce(
 		#need to go get two different trees, one for giving a branch and one for recieving a branch
 
 		#this will have two forest indices, [male, female]
-		c_idx = utility.random_sample_n_inverse_weighted(sorted_scores, 2, let_dupe=False)
+		c_idx = utility.random_sample_n_weighted(sorted_scores, 2, let_dupe=False, inverse=invert_weights)
 
 		#go get detached branch from male tree
 		male_ptr = sorted_forest[c_idx[0]]
@@ -110,7 +131,7 @@ def reproduce(
 	#M is mutation
 
 	#pick random trees from inverse transform sampling of scores
-	m_idx = utility.random_sample_n_inverse_weighted(scores, m_size)
+	m_idx = utility.random_sample_n_weighted(scores, m_size)
 
 	for m in m_idx:
 
@@ -126,7 +147,7 @@ def reproduce(
 	#E is elitism
 
 	#pick random trees from inverse transform sampling of scores
-	e_idx = utility.random_sample_n_inverse_weighted(scores, e_size)
+	e_idx = utility.random_sample_n_weighted(scores, e_size)
 
 	for e in e_idx:
 		new_tree:transforms.T_node = forest[e].copy()
@@ -140,7 +161,7 @@ def reproduce(
 		#need to go get two different trees, one for giving a branch and one for recieving a branch
 
 		#this will have two forest indices, [male, female]
-		c_idx = utility.random_sample_n_inverse_weighted(scores, 2, let_dupe=False)
+		c_idx = utility.random_sample_n_weighted(scores, 2, let_dupe=False)
 
 		#go get detached branch from male tree
 		male_ptr = forest[c_idx[0]]

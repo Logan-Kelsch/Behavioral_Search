@@ -755,6 +755,20 @@ class T_node:
 		self._delta2= new._delta2
 		return self
 
+	def flip_sign(
+		self
+	):
+		'''
+		This function flips the sign of any given tree when realized
+		by pushing root node otop of a negative transformation function
+		'''
+
+		new_tree = T_node(4)
+		new_tree._x = self
+
+		return new_tree
+
+
 
 	def get_rrf(
 		self
