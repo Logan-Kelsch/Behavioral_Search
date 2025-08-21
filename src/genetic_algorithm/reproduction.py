@@ -22,7 +22,7 @@ def reproduce_scarce(
 			scored_forests = sorted(zip(forest, scores), key=lambda pair: pair[1])
 			sorted_forest, sorted_scores = map(list, zip(*scored_forests))
 		case 'adjEV':
-			scores = list(np.exp(scores))
+			scores = scores
 			scored_forests = sorted(zip(forest, scores), key=lambda pair: pair[1], reverse=True)
 			sorted_forest, sorted_scores = map(list, zip(*scored_forests))
 

@@ -859,7 +859,7 @@ def anytime_ensemble_builder(
 	nsmb_iters	:	int	=	20,
 	nsmbl_metric:	Literal['shapley','importance']	=	'shapley',
 	strike_thr	:	float	=	0.0,
-	strikes		:	int	=	3
+	strikes		:	int	=	2
 ):
 	
 	# NOTE SIGNAL INITIALIZATION NOTE #
@@ -871,6 +871,7 @@ def anytime_ensemble_builder(
 		global stop_requested
 		print("PROGRAM STOP REQUESTED. COMPLETING ITERATION AND SAVING ENSEMBLE.")
 		stop_requested = True
+		exit
 
 	signal.signal(signal.SIGINT, request_stop)
 	# NOTE END SIGNAL INITIALIZATION NOTE #
@@ -894,8 +895,30 @@ def anytime_ensemble_builder(
 
 	R = np.exp(local_ln_plratio)
 
+	#solving for
+	print(f'SOLVING FOR: atrcoef;{local_atr_coef}  lnplratio;{local_ln_plratio}  R;{R}')
+
 	x_ = transforms.forest2features(forest, x_raw)
 	y_ = evaluation.generate_solarr_atrplr(x_raw, local_atr_coef, np.log(R))
+
+	
+	nonan = ~np.isnan(y_)
+
+	x_ = x_[nonan].astype(np.float32)
+	y_ = y_[nonan].astype(int)
+
+	x_ = evaluation.binarize_features(x_, y_)
+	
+	print(np.unique(y_, return_counts=True))
+	print(np.unique(x_, return_counts=True))
+
+	#display initial EV 
+	if(x_.size != 0):
+		ypred = evaluation.meta_biconsensus(x_)
+		ps = np.sum(y_ & ypred)/np.sum(ypred) if np.sum(ypred)>0 else 0.0
+		EV = (R+1) * ps - 1
+
+		print(f'INITIAL EV: {EV}')
 
 	_, to_flip = evaluation.evaluate_forest_adjev(x_, y_, R)
 	for t in range(len(forest)):
@@ -909,13 +932,15 @@ def anytime_ensemble_builder(
 	try:
 		for iter in range(nsmb_iters):
 
+			del_deg = False
+
 			if(type(atr_coef) == tuple):
 				local_atr_coef = random.uniform(atr_coef[0], atr_coef[1])
 			else:
 				local_atr_coef = atr_coef
 
 			if(type(ln_plratio) == tuple):
-				local_ln_plratio = random.unifrom(ln_plratio[0], ln_plratio[1])
+				local_ln_plratio = random.uniform(ln_plratio[0], ln_plratio[1])
 			else:
 				local_ln_plratio = ln_plratio
 			
@@ -929,34 +954,74 @@ def anytime_ensemble_builder(
 			#newly created feature will either be replacing a degenerate feature of the ensemble
 			#or it will be appended to the ensemble if all features are in good health
 
-			#check to see if case is replacement by getting location of, or -1 if no replacement
-			deg_idx = int(np.argmax(strike_arr) if strike_arr.size and strike_arr.max() >= strikes else -1)
+			
 
+			#check to see if case is replacement by getting location of, or -1 if no replacement
+			#using strike_arr.shape[0]-np.argmax(strike_arr[::-1])-1 so that I can see the NEWEST feature for strikeout 
+			# 	 to avoid bad features from bogging
+			deg_idx = int(strike_arr.shape[0]-np.argmax(strike_arr[::-1])-1 if strike_arr.size and strike_arr.max() >= strikes else -1)
+			
 			#this case is for replacement
 			if(deg_idx>=0):
 				forest[deg_idx] = new_feat
 
 				x_ = transforms.forest2features(forest, x_raw)
-				scores = evaluation.shapley_ev_allvote(x_, y_, R, return_kind=nsmbl_metric)
-				strike_arr[np.where(scores<=strike_thr)] += 1
-				strike_arr[np.where(scores >strike_thr)] = 0
+				x_ = x_[nonan].astype(np.float32)
+				x_ = evaluation.binarize_features(x_, y_)
+
+				cndt_EV = evaluation.solve_EV(y_, evaluation.meta_biconsensus(x_), R)
+
+				if(cndt_EV>0):
+					scores = evaluation.shapley_ev_allvote(x_, y_, R, return_kind=nsmbl_metric)
+					strike_arr[np.where(scores<=strike_thr)] += 1
+					strike_arr[np.where(scores >strike_thr)] = 0
+					strike_arr[deg_idx] = 0
+				else:
+					print('Degenerate removed, not replaced, lead to mode collapse.. Continuing')
+					del_deg = True
 			
 			#this case is for appending of a new feature to ensemble
 			else:
 				forest.append(new_feat)
 
 				x_ = transforms.forest2features(forest, x_raw)
-				scores = evaluation.shapley_ev_allvote(x_, y_, R, return_kind=nsmbl_metric)
-				strike_arr = np.append(strike_arr, 0)
-				strike_arr[np.where(scores<=strike_thr)] += 1
-				strike_arr[np.where(scores >strike_thr)]  = 0
+				x_ = x_[nonan].astype(np.float32)
+				x_ = evaluation.binarize_features(x_, y_)
+				
+				cndt_EV = evaluation.solve_EV(y_, evaluation.meta_biconsensus(x_), R)
 
+				if(cndt_EV>0):
+					scores = evaluation.shapley_ev_allvote(x_, y_, R, return_kind=nsmbl_metric)
+					strike_arr = np.append(strike_arr, 0)
+					strike_arr[np.where(scores<=strike_thr)] += 1
+					strike_arr[np.where(scores >strike_thr)]  = 0
+				else:
+					print('New feature not added, lead to mode collapse.. Continuing')
+					forest.pop()
 
+			#look for any abandoned features that struck out a while ago
+			#this case is possible after loading in premade feature
+			abn_idx = (np.sort(np.where(strike_arr > 2*strikes)[0])[::-1])
+			if(del_deg==False):
+				np.delete(abn_idx, np.where(abn_idx == deg_idx)[0])
+
+			if(len(abn_idx)>0):
+				print(f'abnidx: {abn_idx}')
+				
+				for idx in range(len(abn_idx)):
+					forest.pop(abn_idx[idx])
+					np.delete(scores, abn_idx[idx])
+					np.delete(strike_arr, abn_idx[idx])
+				
+				del abn_idx
+
+			x_ = transforms.forest2features(forest, x_raw)
+			x_ = x_[nonan].astype(np.float32)
+			x_ = evaluation.binarize_features(x_, y_)
 			ypred = evaluation.meta_biconsensus(x_)
-			ps = np.sum(y_ & ypred)/np.sum(ypred) if np.sum(ypred)>0 else 0.0
-			EV = (R+1) * ps - 1
+			EV = evaluation.solve_EV(y_, ypred, R)
 
-			print(f'ENSEMBLE Iter #{iter+1}: EV = {EV:.6f}')
+			print(f'ENSEMBLE (Size: {len(forest)}, Freq: {np.mean(ypred):.4f}) Iter #{iter+1}: EV = {EV:.6f}')
 			print(f'Strike Sum: {strike_arr.sum()}')
 
 
@@ -974,7 +1039,7 @@ def generate_local_solution(
 	init_svvl	:	float	=	0.0,
 	atr_thresh	:	float	=	1,
 	ln_plratio	:	float	=	np.log(5),
-	MRC			:	tuple	=	(0.33, 0.33, 0.34)
+	MRC			:	tuple	=	(0.0, 0.25, 0.75)
 ):
 	'''
 	This function will generate a population and
@@ -993,6 +1058,9 @@ def generate_local_solution(
 
 	y = evaluation.generate_solarr_atrplr(raw_data, atr_thresh, ln_plratio)
 
+	mask = ~np.isnan(y)
+	y = y[mask]
+
 	rem_iter = iterations
 	crnt_forest = []
 	crnt_scores = []
@@ -1006,6 +1074,7 @@ def generate_local_solution(
 		crnt_forest = poppy.generate_random_forest(init_size, init_dpth)
 		#realize forest
 		x = transforms.forest2features(crnt_forest, raw_data)
+		x = x[mask]
 		#score forest
 		crnt_scores, flips = evaluation.evaluate_forest_adjev(x, y, R=np.exp(ln_plratio))
 		
@@ -1032,7 +1101,8 @@ def generate_local_solution(
 			metric='adjEV'
 		)
 		#realize forest
-		x = transforms.forest2features(crnt_forest, raw_data)
+		x = transforms.forest2features(cndt_forest, raw_data)
+		x = x[mask]
 		#score forest
 		cndt_scores, flips = evaluation.evaluate_forest_adjev(x, y, R=np.exp(ln_plratio))
 
@@ -1042,17 +1112,24 @@ def generate_local_solution(
 		if(scores[-1] > survival):
 			crnt_forest = copy.deepcopy(cndt_forest)
 			crnt_scores = copy.deepcopy(cndt_scores)
+			survival = scores[-1]
+		else:
+			del cndt_forest
+			del cndt_scores
+
+		if(rem_iter!=1):
+			crnt_forest = poppy.remove_duplicates(crnt_forest)
 
 		rem_iter-=1
 
-		print(f'newgen remaining iters {rem_iter}: LAST {scores[-1]} BEST {survival}')
+		print(f'newgen remaining iters {rem_iter}: LAST {scores[-1]:.4f} BEST {survival:.4f}')
 
 	best_idx = int(np.argmax(crnt_scores))
 	best_tree:transforms.T_node = copy.deepcopy(crnt_forest[best_idx])
 
 	#check to see if tree needs to be flipped
 	if(flips[best_idx]==1):
-		return best_tree.flip_sign()
+		return best_tree#.flip_sign()
 	else:
 		return best_tree
 
@@ -1287,4 +1364,10 @@ if __name__ == "__main__":
 	print("running...")
 	#optimize_reproduction()
 
-	anytime_ensemble_builder(forest=serialization.load_forest(where='allruns.4st'), feat_iters=15)
+	#
+	anytime_ensemble_builder(
+		forest=serialization.load_forest(where='allruns.4st'),
+		atr_coef=(1, 1),
+		ln_plratio=(np.log(5), np.log(5)),
+		feat_iters=5, nsmb_iters=20
+	)

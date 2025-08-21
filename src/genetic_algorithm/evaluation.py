@@ -603,36 +603,86 @@ def _best_precision_per_feature(X, y):
 
 	return f_ps, flip_idx
 
+@njit(parallel=True, fastmath=True, cache=True)
+def _binarize_by_flips_numba(X, flips_u8):
+	n, m = X.shape
+	out = np.empty((n, m), dtype=np.uint8)
+	for j in prange(m):
+		use_pos = (flips_u8[j] == 0)
+		if use_pos:
+			for i in range(n):
+				x = X[i, j]
+				out[i, j] = 1 if x > 0.0 else 0
+		else:
+			for i in range(n):
+				x = X[i, j]
+				out[i, j] = 1 if x < 0.0 else 0
+	return out
+
+def binarize_features(X, y):
+	import evaluation
+	ps, flips = evaluation._best_precision_per_feature(X, y)
+
+	Xc = np.ascontiguousarray(X)
+	flips = np.asarray(flips).ravel()
+	if(flips.shape[0]!=Xc.shape[1]):
+		raise ValueError('mismatching sizes: flips to Xc in coef calc prep')
+	flips_u8 = (flips != 0).astype(np.uint8)
+
+	return evaluation._binarize_by_flips_numba(Xc, flips_u8)
+
+def solve_EV(y_true, y_pred, R):
+	ps = np.sum(y_true & y_pred)/np.sum(y_pred) if np.sum(y_pred)>0 else 0.0
+	return ((R+1) * ps - 1)
 
 def evaluate_forest_adjev(
 	X	:	np.ndarray,
 	y	:	np.ndarray,
 	R	:	float	=	5,
 	balance_precision	:	bool	=	True,
-	balance_frequency	:	bool	=	True,
+	balance_frequency	:	bool	=	False,
 	clip_negative_evs	:	bool	=	True
 ):
 	#identify valid (non-NaN) indices and extract y_true
-	valid_mask = ~np.isnan(y)
-	valid_idx = np.nonzero(valid_mask)[0].astype(np.int64)
-	y = y[valid_mask].astype(np.int8)
+	#valid_mask = ~np.isnan(y)
+	#valid_idx = np.nonzero(valid_mask)[0].astype(np.int64)
+	#y = y[valid_mask].astype(np.int8)
 
 	#collect precision scores and trees to flip
 	ps, flips = _best_precision_per_feature(X, y)
 	
 	#solve for EV
 	EV = (R+1) * ps - 1
+	#print(f'EVS: {EV}')
+	if(EV.shape[0]!=0):
+		#print(f'MAX EV: {EV.max()}')
 
-	#decay EV if predictions have unreasonable frequency (scarce, excessive)
-	if(balance_frequency):
-		EV *= ((1-binary_imbalance_coefficient(X[valid_idx], y)) ** 2)
-	
-	#decay EV if inconsistent precision in predictions
-	if(balance_precision):
-		EV *= ((1-_prec_inconsistency_numba(X, y, valid_idx, n_chunks=4)) ** 2)
+		Xc = np.ascontiguousarray(X)
+		flips = np.asarray(flips).ravel()
+		if(flips.shape[0]!=Xc.shape[1]):
+			raise ValueError('mismatching sizes: flips to Xc in coef calc prep')
+		flips_u8 = (flips != 0).astype(np.uint8)
 
-	if(clip_negative_evs):
-		np.clip(EV, 0, None, out=EV)
+		X = _binarize_by_flips_numba(Xc, flips_u8)
+
+		#decay EV if predictions have unreasonable frequency (scarce, excessive)
+		if(balance_frequency):
+			bic = binary_imbalance_coefficient(X, y)
+			#print(bic.min(), bic.max())
+			EV *= ((1-bic) ** 2)
+		
+		#decay EV if inconsistent precision in predictions
+		if(balance_precision):
+			EV *= ((1-_prec_inconsistency_numba(X, y, np.arange(X.shape[0], dtype=int), n_chunks=4)) ** 2)
+			pass
+
+		#print(f'MAX EV: {EV.max()}')
+
+		if(clip_negative_evs):
+			np.clip(EV, 0, None, out=EV)
+
+		#print(f'MAX adjEV: {EV.max():.6f}')
+
 
 	return EV, flips
 
@@ -821,12 +871,14 @@ def shapley_ev_allvote(
 	If "importance": np.ndarray (n_models,)
 	"""
 
-	print(f'in shapley_ev_allvote in evaluation: X, y_ shapes: {X.shape} -- {y_true.shape}')
+	#print(f'in shapley_ev_allvote in evaluation: X, y_ shapes: {X.shape} -- {y_true.shape}')
 
 	if(X.size == 0):
 		return np.array([])
-	X = (X.astype(np.uint8) != 0)
-	y = (np.asarray(y_true).astype(np.uint8) != 0)
+	
+	valid_mask = ~np.isnan(y_true)
+	X = (X[valid_mask].astype(np.uint8) != 0)
+	y = (np.asarray(y_true[valid_mask]).astype(np.uint8) != 0)
 
 	rng = np.random.default_rng(seed)
 	n_samples, n_models = X.shape

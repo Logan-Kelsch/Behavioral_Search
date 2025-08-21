@@ -160,6 +160,10 @@ def demo_constopt_nn(
 	score_NN = evaluation.standard_NN_evaluation(X_train, X_test, y_train, y_test, model, history, dirpath)
 	return best_forest, best_scores, score_NN
 
+def complement_indices(n, idx):
+	mask = np.ones(n, dtype=bool)
+	mask[np.asarray(idx, dtype=int)] = False
+	return np.flatnonzero(mask)
 
 def random_sample_n_weighted(
 	scores	:	list,
@@ -175,11 +179,11 @@ def random_sample_n_weighted(
 	selected_indices = []
 
 	raw_scores = scores.copy()
-	raw_scores_rnd = [round(x, 8) for x in raw_scores]
+	raw_scores_rnd = [round(x, 7) for x in raw_scores]
 	if(inverse):
-		inv_scores = [1/x for x in raw_scores]
+		inv_scores = [1/x for x in raw_scores_rnd]
 	else:
-		inv_scores = raw_scores
+		inv_scores = raw_scores_rnd
 
 	wscore_vol = 0
 	for invs in inv_scores:
@@ -209,11 +213,16 @@ def random_sample_n_weighted(
 			if(search_idx == len(sorted_inv_scores)-1):
 				break
 		
-		selected_indices.append(
-			raw_scores_rnd.index(
+		if(inverse):
+			loc = raw_scores_rnd.index(
 				round(1/sorted_inv_scores[search_idx], 8)
 			)
-		)
+		else:
+			loc = raw_scores_rnd.index(
+				sorted_inv_scores[search_idx]
+			)
+
+		selected_indices.append(loc)
 
 	if(len(selected_indices)!=n):
 		raise ValueError(f"why does # selected indices not equal n?")
