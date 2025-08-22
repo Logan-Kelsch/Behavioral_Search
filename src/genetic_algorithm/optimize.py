@@ -855,6 +855,7 @@ def anytime_ensemble_builder(
 	forest		:	list	=	[],
 	atr_coef	:	float|tuple	=	1,
 	ln_plratio	:	float|tuple	=	np.log(5),
+	min_freq	:	float	=	0.01,
 	feat_iters	:	int	=	100,
 	nsmb_iters	:	int	=	20,
 	nsmbl_metric:	Literal['shapley','importance']	=	'shapley',
@@ -894,6 +895,7 @@ def anytime_ensemble_builder(
 		local_ln_plratio = ln_plratio
 
 	R = np.exp(local_ln_plratio)
+	vthr = min_freq
 
 	#solving for
 	print(f'SOLVING FOR: atrcoef;{local_atr_coef}  lnplratio;{local_ln_plratio}  R;{R}')
@@ -912,22 +914,35 @@ def anytime_ensemble_builder(
 	print(np.unique(y_, return_counts=True))
 	print(np.unique(x_, return_counts=True))
 
+	cndt_freq = min_freq
+	vthr = 0.01
+	EV = 0
+
 	#display initial EV 
 	if(x_.size != 0):
-		ypred = evaluation.meta_biconsensus(x_)
+		#solve for vote threshold
+		vthr, cndt_freq = evaluation.solve_threshold(x_, min_freq)
+		ypred = evaluation.meta_bithreshold(x_, vthr)
 		ps = np.sum(y_ & ypred)/np.sum(ypred) if np.sum(ypred)>0 else 0.0
 		EV = (R+1) * ps - 1
 
-		print(f'INITIAL EV: {EV}')
+		print(f'INITIAL EV: {EV:.4f} WITH FREQ: {cndt_freq:.4f} @ THRESH: {vthr:.4f}')
 
 	_, to_flip = evaluation.evaluate_forest_adjev(x_, y_, R)
 	for t in range(len(forest)):
 		if(to_flip[t]==1):
 			forest[t] = forest[t].flip_sign()
 
-	scores = evaluation.shapley_ev_allvote(x_, y_, R, return_kind=nsmbl_metric)
+	scores = evaluation.shapley_ev_thresholdvote(x_, y_, R, vthr, return_kind=nsmbl_metric)
 	strike_arr[np.where(scores<=strike_thr)] += 1
 	strike_arr[np.where(scores >strike_thr)]  = 0
+	
+	crnt_forest = copy.deepcopy(forest)
+
+	crnt_freq = cndt_freq
+	thrs = [vthr]
+	freqs = [crnt_freq]
+	EVs = [EV]
 
 	try:
 		for iter in range(nsmb_iters):
@@ -954,7 +969,7 @@ def anytime_ensemble_builder(
 			#newly created feature will either be replacing a degenerate feature of the ensemble
 			#or it will be appended to the ensemble if all features are in good health
 
-			
+			cndt_forest = copy.deepcopy(crnt_forest)
 
 			#check to see if case is replacement by getting location of, or -1 if no replacement
 			#using strike_arr.shape[0]-np.argmax(strike_arr[::-1])-1 so that I can see the NEWEST feature for strikeout 
@@ -963,45 +978,55 @@ def anytime_ensemble_builder(
 			
 			#this case is for replacement
 			if(deg_idx>=0):
-				forest[deg_idx] = new_feat
+				cndt_forest[deg_idx] = copy.deepcopy(new_feat)
 
-				x_ = transforms.forest2features(forest, x_raw)
+				x_ = transforms.forest2features(cndt_forest, x_raw)
 				x_ = x_[nonan].astype(np.float32)
 				x_ = evaluation.binarize_features(x_, y_)
 
-				cndt_EV = evaluation.solve_EV(y_, evaluation.meta_biconsensus(x_), R)
+				vthr, cndt_freq = evaluation.solve_threshold(x_, min_freq)
+				cndt_EV = evaluation.solve_EV(y_, evaluation.meta_bithreshold(x_, vthr), R)
 
-				if(cndt_EV>0):
-					scores = evaluation.shapley_ev_allvote(x_, y_, R, return_kind=nsmbl_metric)
+				#if((cndt_EV*cndt_freq) >= (EV*crnt_freq**2)*(1 - 1/len(forest))):
+				if(cndt_EV>EV and (bool(cndt_freq<1.0) ^ bool(iter==0))):
+					scores = evaluation.shapley_ev_thresholdvote(x_, y_, R, vthr, return_kind=nsmbl_metric)
 					strike_arr[np.where(scores<=strike_thr)] += 1
-					strike_arr[np.where(scores >strike_thr)] = 0
+					strike_arr[np.where(scores >strike_thr)]  = 0
 					strike_arr[deg_idx] = 0
+					crnt_forest = cndt_forest
 				else:
-					print('Degenerate removed, not replaced, lead to mode collapse.. Continuing')
+					print(f'Proposed freqEV change: {(EV*crnt_freq):.4f} -> {(cndt_EV*cndt_freq):.4f} rejected.')
+					print(f'specs: {EV:.4f}, {crnt_freq:.4f}, {cndt_EV:.4f}, {cndt_freq:.4f}')
+					print('Degenerate and replacement deleted, lead to mode collapse.. Continuing')
 					del_deg = True
+					
 			
 			#this case is for appending of a new feature to ensemble
 			else:
-				forest.append(new_feat)
+				cndt_forest.append(copy.deepcopy(new_feat))
 
-				x_ = transforms.forest2features(forest, x_raw)
+				x_ = transforms.forest2features(cndt_forest, x_raw)
 				x_ = x_[nonan].astype(np.float32)
 				x_ = evaluation.binarize_features(x_, y_)
 				
-				cndt_EV = evaluation.solve_EV(y_, evaluation.meta_biconsensus(x_), R)
+				vthr, cndt_freq = evaluation.solve_threshold(x_, min_freq)
+				cndt_EV = evaluation.solve_EV(y_, evaluation.meta_bithreshold(x_, vthr), R)
 
-				if(cndt_EV>0):
-					scores = evaluation.shapley_ev_allvote(x_, y_, R, return_kind=nsmbl_metric)
+				#if((cndt_EV*cndt_freq) >= (EV*crnt_freq**2)*(1 - 1/len(forest))):
+				if(cndt_EV>EV and (bool(cndt_freq<1.0) ^ bool(iter==0))):
+					scores = evaluation.shapley_ev_thresholdvote(x_, y_, R, vthr, return_kind=nsmbl_metric)
 					strike_arr = np.append(strike_arr, 0)
 					strike_arr[np.where(scores<=strike_thr)] += 1
 					strike_arr[np.where(scores >strike_thr)]  = 0
+					crnt_forest = cndt_forest
 				else:
-					print('New feature not added, lead to mode collapse.. Continuing')
-					forest.pop()
+					print(f'Proposed freqEV change: {(EV*crnt_freq):.4f} -> {(cndt_EV*cndt_freq):.4f} rejected.')
+					print(f'specs: {EV:.4f}, {crnt_freq:.4f}, {cndt_EV:.4f}, {cndt_freq:.4f}')
+					print('New feature deleted, lead to mode collapse.. Continuing')
 
 			#look for any abandoned features that struck out a while ago
 			#this case is possible after loading in premade feature
-			abn_idx = (np.sort(np.where(strike_arr > 2*strikes)[0])[::-1])
+			abn_idx = (np.sort(np.where(strike_arr >= 2*strikes)[0])[::-1])
 			if(del_deg==False):
 				np.delete(abn_idx, np.where(abn_idx == deg_idx)[0])
 
@@ -1009,27 +1034,42 @@ def anytime_ensemble_builder(
 				print(f'abnidx: {abn_idx}')
 				
 				for idx in range(len(abn_idx)):
-					forest.pop(abn_idx[idx])
+					crnt_forest.pop(abn_idx[idx])
 					np.delete(scores, abn_idx[idx])
 					np.delete(strike_arr, abn_idx[idx])
 				
 				del abn_idx
 
-			x_ = transforms.forest2features(forest, x_raw)
+			x_ = transforms.forest2features(crnt_forest, x_raw)
 			x_ = x_[nonan].astype(np.float32)
 			x_ = evaluation.binarize_features(x_, y_)
-			ypred = evaluation.meta_biconsensus(x_)
+			vthr, crnt_freq = evaluation.solve_threshold(x_, min_freq)
+			ypred = evaluation.meta_bithreshold(x_, vthr)
 			EV = evaluation.solve_EV(y_, ypred, R)
 
-			print(f'ENSEMBLE (Size: {len(forest)}, Freq: {np.mean(ypred):.4f}) Iter #{iter+1}: EV = {EV:.6f}')
-			print(f'Strike Sum: {strike_arr.sum()}')
+			thrs.append(vthr)
+			freqs.append(crnt_freq)
+			EVs.append(EV)
+
+			print(f'Iter#{iter} Ensemble (Size: {len(crnt_forest)} EV: {EV:.4f} With Freq: {crnt_freq:.4f} @ Thresh: {vthr:.4f})')
+			print(f'Total Strikes: {strike_arr.sum()} -- Most Strikes: {strike_arr.max()}')
 
 
 			if(stop_requested):
-				break
+				exit
 	
-	finally:
-		pass
+	except Exception as e:
+		del forest, crnt_forest, cndt_forest
+		print('forests deleted')
+		print(e)
+		return
+
+	
+	
+	print('successfull save')
+	dirpath = utility.fetch_new_run_dirpath()
+	serialization.save_deeplist([crnt_forest, (atr_coef, ln_plratio), thrs, freqs, EVs], name='ensemble.data', dirpath=dirpath)
+	del forest, crnt_forest, cndt_forest
 
 def generate_local_solution(
 	raw_data	:	np.ndarray,
@@ -1117,8 +1157,8 @@ def generate_local_solution(
 			del cndt_forest
 			del cndt_scores
 
-		if(rem_iter!=1):
-			crnt_forest = poppy.remove_duplicates(crnt_forest)
+		#if(rem_iter!=1):
+			#crnt_forest = poppy.remove_duplicates(crnt_forest)
 
 		rem_iter-=1
 
@@ -1364,10 +1404,8 @@ if __name__ == "__main__":
 	print("running...")
 	#optimize_reproduction()
 
-	#
 	anytime_ensemble_builder(
-		forest=serialization.load_forest(where='allruns.4st'),
-		atr_coef=(1, 1),
-		ln_plratio=(np.log(5), np.log(5)),
-		feat_iters=5, nsmb_iters=20
+				atr_coef=(1, 2),
+				ln_plratio=(np.log(3), np.log(7)),
+				feat_iters=4, nsmb_iters=30
 	)

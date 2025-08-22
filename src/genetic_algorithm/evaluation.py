@@ -640,7 +640,7 @@ def evaluate_forest_adjev(
 	y	:	np.ndarray,
 	R	:	float	=	5,
 	balance_precision	:	bool	=	True,
-	balance_frequency	:	bool	=	False,
+	balance_frequency	:	bool	=	True,
 	clip_negative_evs	:	bool	=	True
 ):
 	#identify valid (non-NaN) indices and extract y_true
@@ -842,7 +842,7 @@ def binary_imbalance_coefficient(
 
 	# compute rates
 	p_sol   = sol.mean()
-	lower   = p_sol/10
+	lower   = p_sol/2
 	p_feats = forest.mean(axis=0)
 
 	# single‐line flat‐bottom: clip then abs diff
@@ -952,6 +952,154 @@ def shapley_ev_allvote(
 		return importance
 	return {"shapley": shapley, "importance": importance, "ev_full": ev_full}
 
+
+import numpy as np
+
+def shapley_ev_thresholdvote(
+	X: np.ndarray,              # (n_samples, n_models) in {0,1}
+	y_true: np.ndarray,         # (n_samples,) in {0,1}
+	R: float = 5.0,
+	threshold=0.5,              # float in (0,1] for fraction, or int quota of votes
+	n_permutations: int = 256,
+	seed: int | None = None,
+	return_kind: str = "shapley"    # "both", "shapley", or "importance"
+):
+	"""
+	Monte Carlo Shapley values for model contributions to a fixed-quota voting ensemble.
+	Coalition predicts 1 on a sample iff the number of '1' votes among included models >= quota.
+
+	EV is computed from precision only:
+		EV = (R + 1) * Precision - 1
+	with TP/FP taken over the coalition's positive predictions.
+
+	Parameters
+	----------
+	threshold : float | int
+		- float in (0,1]: fraction of models required (e.g., 0.5 -> ceil(0.5*n_models))
+		- int >= 0: absolute number of 'yes' votes required.
+
+	Returns
+	-------
+	If return_kind == "both": dict with keys:
+		- "shapley":    np.ndarray (n_models,) raw Shapley contributions (EV units)
+		- "importance": np.ndarray (n_models,) normalized to [0,1] (positive part)
+		- "ev_full":    float, EV of the full coalition (all models included)
+	If "shapley": np.ndarray (n_models,)
+	If "importance": np.ndarray (n_models,)
+	"""
+	if X.size == 0:
+		return np.array([])
+
+	# ---- clean & cast ----
+	valid_mask = ~np.isnan(y_true)
+	X = (X[valid_mask].astype(np.uint8) != 0)
+	y = (np.asarray(y_true[valid_mask]).astype(np.uint8) != 0)
+
+	rng = np.random.default_rng(seed)
+	n_samples, n_models = X.shape
+
+	# ---- quota from threshold ----
+	if isinstance(threshold, (float, np.floating)):
+		q = int(np.ceil(float(threshold) * n_models))
+	else:
+		q = int(threshold)
+
+	# clamp to [0, n_models+1] (q = n_models+1 means "impossible")
+	if q < 0:
+		q = 0
+	if q > n_models + 1:
+		q = n_models + 1
+
+	# ---- EV helper ----
+	def ev_from_counts(tp: float, fp: float) -> float:
+		denom = tp + fp
+		if denom <= 0.0:
+			return 0.0
+		P = tp / denom
+		return P * (R + 1.0) - 1.0
+
+	# ---- full-coalition EV (for reporting) ----
+	if q == 0:
+		mask_full = np.ones(n_samples, dtype=bool)
+	elif q == n_models + 1:
+		mask_full = np.zeros(n_samples, dtype=bool)
+	else:
+		votes_full = X.sum(axis=1, dtype=np.int32)
+		mask_full = (votes_full >= q)
+
+	tp_full = float(np.sum(mask_full & y))
+	fp_full = float(np.sum(mask_full & (~y)))
+	ev_full = ev_from_counts(tp_full, fp_full)
+
+	# ---- Shapley accumulation ----
+	shapley_sum = np.zeros(n_models, dtype=np.float64)
+
+	# Precompute complements for quick counts
+	y_n = ~y
+
+	for _ in range(n_permutations):
+		order = rng.permutation(n_models)
+
+		# Start with empty coalition:
+		# counts[s] = # of '1' votes from models included so far on sample s
+		counts = np.zeros(n_samples, dtype=np.uint16)
+
+		# positives under empty coalition:
+		if q == 0:
+			tp_cur = float(np.sum(y))
+			fp_cur = float(np.sum(y_n))
+			ev_cur = ev_from_counts(tp_cur, fp_cur)
+		else:
+			tp_cur = 0.0
+			fp_cur = 0.0
+			ev_cur = 0.0
+
+		if q == 0:
+			# Already fully positive; adding models never changes EV.
+			# All marginals are zero in this permutation.
+			continue
+
+		if q == n_models + 1:
+			# Impossible to reach; additions never create positives → all marginals zero.
+			continue
+
+		for j in order:
+			# Samples that newly cross the quota when adding model j:
+			# (counts == q-1) AND (X[:, j] == 1)
+			xj = X[:, j]
+			newly_pos = (counts == (q - 1)) & xj
+
+			# Increment TP/FP only on newly activated samples
+			tp_inc = float(np.sum(y[newly_pos]))
+			fp_inc = float(np.sum(y_n[newly_pos]))
+
+			tp_next = tp_cur + tp_inc
+			fp_next = fp_cur + fp_inc
+			ev_next = ev_from_counts(tp_next, fp_next)
+
+			shapley_sum[j] += (ev_next - ev_cur)
+
+			# Advance coalition state:
+			# update counts only where xj==1
+			if np.any(xj):
+				counts[xj] += 1
+			tp_cur, fp_cur, ev_cur = tp_next, fp_next, ev_next
+
+	shapley = shapley_sum / float(n_permutations) if n_permutations > 0 else shapley_sum
+
+	# Normalized importance on [0,1] (positive part)
+	pos = np.clip(shapley, 0.0, None)
+	imax = pos.max()
+	importance = (pos / imax) if imax > 0 else np.zeros_like(pos)
+
+	if return_kind == "shapley":
+		return shapley
+	if return_kind == "importance":
+		return importance
+	return {"shapley": shapley, "importance": importance, "ev_full": ev_full}
+
+
+
 def get_best_forest(
 	forfeat_batches	:	list,
 	forest_batches	:	list,
@@ -990,15 +1138,147 @@ def meta_biconsensus(
 ):
 	return X.all(axis=1).astype(int)
 
-def meta_bipopvote(
-	pred_arrs	:	np.ndarray,
+def meta_bithreshold(
+	X	:	np.ndarray,
 	threshold	:	float	=	0.5
 ):
 	'''
 	This function returns an array of the popular vote for an array of output model predictions
 	'''
-	return (pred_arrs.mean(axis=1) >= threshold).astype(int)
+	return (X.mean(axis=1) >= threshold).astype(int)
 	
+def solve_threshold(
+	X	:	np.ndarray,
+	min_frq	:	float	=	0.01,
+
+):
+    """
+    X: (n_samples, n_models), entries >0 are treated as votes=1, else 0
+    min_frq: desired minimum overall positive frequency in [0,1]
+    
+    Returns:
+        t           : threshold as a fraction of models in [0,1]
+        freq_achieved : actual frequency at that threshold (>= min_frq)
+    """
+    if X.size == 0:
+        return 1.0, 0.0  # trivial
+
+    # binarize; ensure (samples, models)
+    X = (np.asarray(X) > 0)
+    n_samples, n_models = X.shape
+    if n_models == 0:
+        return 1.0, 0.0
+
+    # votes per sample (0..n_models), small int dtype is fine for <100 models
+    votes = X.sum(axis=1, dtype=np.int16)
+
+    # how many positives we need (≥ min_frq)
+    need = int(np.ceil(float(min_frq) * n_samples))
+    need = max(0, min(need, n_samples))  # clamp
+
+    # histogram over vote counts 0..n_models
+    hist = np.bincount(votes, minlength=n_models + 1)
+
+    # sweep from the strictest cutoff down; first that satisfies 'need' is the largest feasible
+    cum = 0
+    vote_cutoff = 0  # default (always feasible when need==n_samples)
+    for k in range(n_models, -1, -1):
+        cum += hist[k]  # cum = #samples with votes >= k
+        if cum >= need:
+            vote_cutoff = k
+            break
+
+    # convert to fraction and compute achieved frequency
+    t = vote_cutoff / n_models
+    freq_achieved = cum / n_samples
+    return t, freq_achieved
+
+
+def ensemble_performance_scarcethresh(
+    X: np.ndarray,          # (n_samples, n_models), binary
+    y: np.ndarray,          # (n_samples,), binary
+    thr: float,
+    R: float = 5.0,
+    n_perm: int = 1000,
+    seed: int | None = None
+):
+    """
+    Compute Precision, EV, Frequency for thresholds t in [thr, 1].
+    Also compute permutation-based p-values for Precision under the null.
+
+    EV = (R+1)*P - 1
+
+    Parameters
+    ----------
+    n_perm : int
+        Number of permutations for null distribution
+    seed   : int | None
+        RNG seed for reproducibility
+
+    Returns
+    -------
+    t_vals : (m,) array of thresholds (fractions)
+    P_vals : (m,) precision at each threshold
+    EV_vals: (m,) expected value at each threshold
+    freq   : (m,) frequency of positives
+    p_vals : (m,) permutation p-values for precision
+    """
+
+    if X.size == 0:
+        return tuple(np.array([]) for _ in range(5))
+
+    rng = np.random.default_rng(seed)
+    X = (np.asarray(X) != 0)
+    y = (np.asarray(y) != 0)
+
+    n_samples, n_models = X.shape
+    votes = X.sum(axis=1, dtype=np.int16)
+
+    # histograms split by class
+    pos = y
+    neg = ~y
+    hist_pos = np.bincount(votes[pos], minlength=n_models+1) if np.any(pos) else np.zeros(n_models+1, dtype=np.int64)
+    hist_neg = np.bincount(votes[neg], minlength=n_models+1) if np.any(neg) else np.zeros(n_models+1, dtype=np.int64)
+
+    # cumulative ≥k
+    cum_pos_ge = np.cumsum(hist_pos[::-1])[::-1]
+    cum_neg_ge = np.cumsum(hist_neg[::-1])[::-1]
+    cum_all_ge = cum_pos_ge + cum_neg_ge
+
+    # thresholds
+    k0 = int(np.ceil(float(thr) * n_models))
+    ks = np.arange(k0, n_models + 1, dtype=int)
+
+    TP = cum_pos_ge[ks].astype(float)
+    FP = cum_neg_ge[ks].astype(float)
+    denom = TP + FP
+    P_vals = np.divide(TP, denom, out=np.zeros_like(TP), where=denom > 0)
+    EV_vals = P_vals * (R + 1.0) - 1.0
+    freq = cum_all_ge[ks] / float(n_samples)
+    t_vals = ks / float(n_models)
+
+    # --- Permutation test for precision ---
+    # Build null distribution for each threshold
+    P_null = np.zeros((n_perm, len(ks)), dtype=float)
+    for b in range(n_perm):
+        y_perm = rng.permutation(y)
+        pos_perm = y_perm
+        neg_perm = ~y_perm
+        hist_pos_perm = np.bincount(votes[pos_perm], minlength=n_models+1) if np.any(pos_perm) else np.zeros(n_models+1, dtype=int)
+        hist_neg_perm = np.bincount(votes[neg_perm], minlength=n_models+1) if np.any(neg_perm) else np.zeros(n_models+1, dtype=int)
+        cum_pos_perm = np.cumsum(hist_pos_perm[::-1])[::-1]
+        cum_neg_perm = np.cumsum(hist_neg_perm[::-1])[::-1]
+        TP_perm = cum_pos_perm[ks].astype(float)
+        FP_perm = cum_neg_perm[ks].astype(float)
+        denom_perm = TP_perm + FP_perm
+        P_perm = np.divide(TP_perm, denom_perm, out=np.zeros_like(TP_perm), where=denom_perm > 0)
+        P_null[b, :] = P_perm
+
+    # p-value = Pr(null ≥ observed) under one-sided test
+    p_vals = (np.sum(P_null >= P_vals, axis=0) + 1) / (n_perm + 1)
+    performance = list(zip(t_vals, EV_vals, freq, p_vals, P_vals))
+    print('columns: threshold (as X), EVs, Freqs, p-values, precisions')
+    return performance
 
 
 from keras.callbacks import EarlyStopping

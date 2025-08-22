@@ -522,3 +522,286 @@ def visualize_opt_path(path, pscores, title=None, dirpath=None):
     plt.close()
     del ax, fig
 
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_spec_ensemble_performances(datasets, n_points=300, info='EV', show_band=False, alpha_lines=0.3):
+    """
+    datasets: list of (xvals, yvals), one per ensemble
+    n_points: number of points for interpolation grid
+    show_band: if True, draw ±1 std dev band around the mean (normalized-space mean)
+    alpha_lines: transparency for individual raw lines
+
+    Plots:
+      - all raw curves (faint) vs their original xvals
+      - mean curve (computed in normalized space, mapped back)
+      - median and 25/75% quantile curves (computed directly in raw-x space)
+    Returns:
+      x_mean_grid, y_mean (the normalized-mean overlay)
+    """
+    # Normalize each curve to [0,1] on its x-axis, interpolate onto a common normalized grid
+    x_norm_grid = np.linspace(0, 1, n_points)
+
+    Y_interp = []
+    Xraw_at_grid = []
+
+    # Collect all raw x-ranges to build a global grid for medians/quantiles
+    all_x_min = min(np.min(x) for x, _ in datasets)
+    all_x_max = max(np.max(x) for x, _ in datasets)
+    x_raw_grid = np.linspace(all_x_min, all_x_max, n_points)
+    Y_raw_interp = []  # y interpolated onto common raw-x grid
+
+    plt.figure(figsize=(8, 5))
+
+    for xvals, yvals in datasets:
+        xvals = np.asarray(xvals)
+        yvals = np.asarray(yvals)
+
+        order = np.argsort(xvals)
+        xvals = xvals[order]
+        yvals = yvals[order]
+
+        plt.plot(xvals, yvals, color='steelblue', alpha=alpha_lines, linewidth=1.5)
+
+        x_min, x_max = xvals[0], xvals[-1]
+        if x_max == x_min:
+            continue
+
+        # Normalized interpolation for mean
+        x_norm = (xvals - x_min) / (x_max - x_min)
+        y_interp_norm = np.interp(x_norm_grid, x_norm, yvals)
+        Y_interp.append(y_interp_norm)
+        Xraw_at_grid.append(x_min + x_norm_grid * (x_max - x_min))
+
+        # Raw-grid interpolation for medians/quantiles
+        y_interp_raw = np.interp(x_raw_grid, xvals, yvals)
+        Y_raw_interp.append(y_interp_raw)
+
+    if not Y_interp:
+        plt.title("No valid curves")
+        plt.show()
+        return np.array([]), np.array([])
+
+    Y_interp = np.vstack(Y_interp)
+    Xraw_at_grid = np.vstack(Xraw_at_grid)
+
+    # Mean across ensembles (normalized space)
+    y_mean = Y_interp.mean(axis=0)
+    y_std = Y_interp.std(axis=0)
+    x_mean_grid = Xraw_at_grid.mean(axis=0)
+
+    # Medians and quantiles across ensembles (raw space)
+    Y_raw_interp = np.vstack(Y_raw_interp)
+    y_median = np.median(Y_raw_interp, axis=0)
+    y_q1 = np.percentile(Y_raw_interp, 25, axis=0)
+    y_q3 = np.percentile(Y_raw_interp, 75, axis=0)
+
+    if show_band:
+        y_lo = y_mean - y_std
+        y_hi = y_mean + y_std
+        plt.fill_between(x_mean_grid, y_lo, y_hi, alpha=0.2, linewidth=0, label="±1 std (norm)")
+
+    # Overlays
+    plt.plot(x_mean_grid, y_mean, color='black', linewidth=2.5, label="Mean (normalized, mapped back)")
+    plt.plot(x_raw_grid, y_median, color='black', linestyle='--', linewidth=2.0, label="Median (raw grid)")
+    plt.plot(x_raw_grid, y_q1, color='black', linestyle=':', linewidth=1.8, label="25th / 75th percentile (raw grid)")
+    plt.plot(x_raw_grid, y_q3, color='black', linestyle=':', linewidth=1.8)
+
+    plt.title(f"{info} across ensembles (raw x) with normalized-mean and raw-median overlays")
+    plt.xlabel("Voting threshold (raw)")
+    plt.ylabel(info)
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    return x_mean_grid, y_mean
+
+
+
+# NOTE LATEX OUTPUT WORK BEGIN NOTE # ___________________________________________
+
+IDX2NAME = {
+    0: r"\mathrm{time}",
+    1: r"\mathrm{high}",
+    2: r"\mathrm{low}",
+    3: r"\mathrm{close}",
+    4: r"\mathrm{volume}",
+}
+
+def _get(obj, name, default=None):
+    return getattr(obj, name, default)
+
+def _is_node(x):
+    return hasattr(x, "_type")
+
+def _fmt_num(x):
+    if isinstance(x, (int, float)):
+        return str(int(x)) if float(x).is_integer() else f"{x:.6g}"
+    raise TypeError(f"Expected numeric constant, got {x!r}")
+
+def _expand_raw_field(x):
+    """Return the LaTeX name for a raw field (no time), e.g., \mathrm{close}."""
+    if not isinstance(x, int) or x not in IDX2NAME:
+        raise ValueError(f"type 0 expects _x in 0..4, got {x!r}")
+    return IDX2NAME[x]
+
+def _atom_at(x, tau: str, *, continuous: bool) -> str:
+    """
+    Render the FULL expression for x evaluated at 'tau'.
+      - If x is a raw field node (_type==0): \mathrm{name}(tau) or \mathrm{name}_{tau}
+      - If x is a composite node: ( to_latex(x) )(tau) or ( ... )_{tau}
+      - If x is a bare index (0..4): same as raw field
+      - If x is a string literal: literal(tau) or literal_{tau}
+    continuous=True  -> use parentheses  (...)(tau)
+    continuous=False -> use subscripts    ..._{tau}
+    """
+    # bare index
+    if isinstance(x, int) and x in IDX2NAME:
+        base = IDX2NAME[x]
+        return f"{base}({tau})" if continuous else fr"{base}_{{{tau}}}"
+
+    # literal symbol
+    if isinstance(x, str):
+        return f"{x}({tau})" if continuous else fr"{x}_{{{tau}}}"
+
+    # node
+    if _is_node(x):
+        if _get(x, "_type") == 0:
+            ix = _get(x, "_x")
+            base = _expand_raw_field(ix)
+            return f"{base}({tau})" if continuous else fr"{base}_{{{tau}}}"
+        # composite expression: subscript/parenthesize the WHOLE thing
+        inner = to_latex(x)  # recursively expanded LaTeX for the expression itself
+        return (r"\left(" + inner + r"\right)" + f"({tau})") if continuous else \
+               (r"\left(" + inner + r"\right)_{" + tau + r"}")
+
+    raise ValueError(f"Unrecognized _x: {x!r}")
+
+def _alpha_expr(alpha) -> str:
+    return to_latex(alpha) if _is_node(alpha) else _fmt_num(alpha)
+
+def _window_min(x, Delta):
+    D = _fmt_num(Delta)
+    # discrete window min over k -> x evaluated at t-k (expanded)
+    return fr"\min_{{0\leq k< {D}}} " + _atom_at(x, r"t-k", continuous=False)
+
+def _window_max(x, Delta):
+    D = _fmt_num(Delta)
+    return fr"\max_{{0\leq k< {D}}} " + _atom_at(x, r"t-k", continuous=False)
+
+def _window_avg(x, Delta):
+    D = _fmt_num(Delta)
+    return fr"\frac{{1}}{{{D}}}\sum_{{k=0}}^{{{D}-1}} " + _atom_at(x, r"t-k", continuous=False)
+
+def _value_t(x) -> str:
+    return _atom_at(x, "t", continuous=False)
+
+# --- main dispatcher (only the changed parts shown; keep your existing other cases) ---
+
+def to_latex(node) -> str:
+    t  = _get(node, "_type")
+    x  = _get(node, "_x")
+    a  = _get(node, "_alpha")
+    d1 = _get(node, "_delta")
+    d2 = _get(node, "_delta2")
+    kp = _get(node, "_kappa")
+
+    if t == 0:
+        # raw field at time t
+        return _value_t(node)  # this calls _atom_at(node, "t", False) and expands
+    if t == 1:
+        return _window_max(x, d1)
+    if t == 2:
+        return _window_min(x, d1)
+    if t == 3:
+        return _window_avg(x, d1)
+    if t == 4:
+        return r"-" + _value_t(x)
+    if t == 5:
+        return _value_t(x) + r" - " + _alpha_expr(a)
+    if t == 6:
+        return r"\left(" + _value_t(x) + r" - " + _alpha_expr(a) + r"\right)^{2}"
+    if t == 7:
+        base_t = _value_t(x)
+        min_d1 = _window_min(x, d1)
+        max_d2 = _window_max(x, d2)
+        return (fr"\frac{{ {base_t} - \left({min_d1}\right) }}"
+                fr"{{ \left({max_d2}\right) - \left({min_d1}\right) }} - \frac{{1}}{{2}}")
+
+    if t == 8:
+        # Continuous-time, finite start at 0; ALWAYS expand _x at s:
+        # hkp(t) = e^{-κ t} hkp(0) + ∫_0^t e^{-κ(t-s)} e^{ x(s) } ds
+        kappa = _fmt_num(kp)
+        x_of_s = _atom_at(x, "k", continuous=True)  # fully expanded x(s)
+        # If you assume h(0)=0, comment out the IC term.
+        return (r"\int_{-\infty}^{t} e^{-" + kappa + r"(t-k)}\,e^{" + x_of_s + r"}\,dk")
+        # If you prefer the discrete version (unit step), use:
+        # x_tminus_i = _atom_at(x, r"t-i", continuous=False)
+        # return (r"\mathrm{hkp}_t = e^{-" + kappa + r" t}\,\mathrm{hkp}_0 + "
+        #         r"\sum_{i=0}^{t} e^{-" + kappa + r" i}\, e^{" + x_tminus_i + r"}")
+
+    raise ValueError(f"Unknown _type: {t!r}")
+
+from pathlib import Path as path
+import os, time
+import matplotlib as mpl
+
+def render_latex(latex: str, filename: str | None = 'latextree.png', 
+                 dpi: int = 220, fontsize: int = 24, times: bool = True) -> str:
+    """
+    Render a LaTeX math string to a PNG image using matplotlib's mathtext.
+    
+    Parameters
+    ----------
+    latex : str
+        The LaTeX content. If it doesn't start with "$", it will be wrapped as inline math `$...$`.
+    filename : str | None
+        Output filename (PNG). If None, a timestamped name will be created under /mnt/data.
+    dpi : int
+        Image resolution.
+    fontsize : int
+        Font size for the rendered equation.
+    times : bool
+        If True, use a Times New Roman–like math font (STIX). Otherwise use the default (Computer Modern).
+        
+    Returns
+    -------
+    path : str
+        Absolute path to the saved PNG file.
+    """
+    if not isinstance(latex, str):
+        raise TypeError("latex must be a string")
+        
+    text = latex.strip()
+    if not text.startswith("$"):
+        text = f"${text}$"
+    
+    if filename is None:
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        filename = f"/mnt/data/latex_{stamp}.png"
+    else:
+        if not os.path.isabs(filename):
+            filename = os.path.join(path.cwd(), filename)
+        if not filename.lower().endswith(".png"):
+            filename += ".png"
+    
+    # Configure font
+    if times:
+        mpl.rcParams['mathtext.fontset'] = 'stix'
+        mpl.rcParams['font.family'] = 'STIXGeneral'
+    else:
+        mpl.rcParams['mathtext.fontset'] = 'cm'
+        mpl.rcParams['font.family'] = 'DejaVu Serif'
+    
+    # Render
+    fig = plt.figure(figsize=(10, 2.5), dpi=dpi)
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.axis("off")
+    ax.text(0.5, 0.5, text, ha="center", va="center", fontsize=fontsize)
+    fig.savefig(filename, bbox_inches="tight", pad_inches=0.1)
+    plt.show()
+    plt.close(fig)
+    return filename
+
+# NOTE END LATEX WORK NOTE #_______________________________________________________________
