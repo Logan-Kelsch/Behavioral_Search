@@ -1,0 +1,14 @@
+\left(\mathrm{low}_{t} - \left(\frac{1}{42}\sum_{k=0}^{42-1} \left(\frac{ \mathrm{low}_{t} - \left(\min_{0\leq k< 18} \mathrm{low}_{t-k}\right) }{ \left(\max_{0\leq k< 14} \mathrm{low}_{t-k}\right) - \left(\min_{0\leq k< 18} \mathrm{low}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right)_{t} - 0\right)^{2}
+
+\left(\mathrm{volume}_{t} - \mathrm{volume}_{t} - \int_{-\infty}^{t} e^{-0.234(t-k)}\,e^{\mathrm{high}(k)}\,dk\right)^{2}
+
+\left(\left(\mathrm{high}_{t} - \left(\mathrm{close}_{t} - \min_{0\leq k< 60} \mathrm{volume}_{t-k}\right)^{2}\right)^{2}\right)_{t} - \mathrm{close}_{t}
+
+\left(\mathrm{high}_{t} - \mathrm{low}_{t} - \left(\frac{1}{3}\sum_{k=0}^{3-1} \mathrm{high}_{t-k}\right)_{t} - 0\right)^{2}
+
+\mathrm{low}_{t} - \left(\left(\max_{0\leq k< 35} \left(\frac{1}{10}\sum_{k=0}^{10-1} \mathrm{high}_{t-k}\right)_{t-k}\right)_{t} - 0\right)_{t} - 0
+
+\left(\left(\left(\mathrm{volume}_{t} - \frac{ \left(-\mathrm{close}_{t}\right)_{t} - \left(\min_{0\leq k< 136} \left(-\mathrm{close}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 63} \left(-\mathrm{close}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 136} \left(-\mathrm{close}_{t}\right)_{t-k}\right) } - \frac{1}{2}\right)^{2}\right)_{t} - 0\right)_{t} - 0
+
+\frac{1}{24}\sum_{k=0}^{24-1} \left(\frac{ \mathrm{close}_{t} - \left(\min_{0\leq k< 6} \mathrm{close}_{t-k}\right) }{ \left(\max_{0\leq k< 28} \mathrm{close}_{t-k}\right) - \left(\min_{0\leq k< 6} \mathrm{close}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}
+

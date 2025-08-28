@@ -1,0 +1,12 @@
+\mathrm{low}_{t} - \mathrm{high}_{t} - \left(\mathrm{high}_{t} - \frac{1}{2}\sum_{k=0}^{2-1} \mathrm{high}_{t-k}\right)_{t} - 0
+
+\mathrm{high}_{t} - \max_{0\leq k< 83} \mathrm{close}_{t-k}
+
+\left(\left(\mathrm{high}_{t} - \min_{0\leq k< 61} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}
+
+\mathrm{low}_{t} - \left(\left(\min_{0\leq k< 56} \mathrm{high}_{t-k}\right)_{t} - \frac{1}{2}\sum_{k=0}^{2-1} \mathrm{high}_{t-k}\right)^{2}
+
+\mathrm{close}_{t} - \min_{0\leq k< 78} \mathrm{volume}_{t-k}
+
+\left(\left(\int_{-\infty}^{t} e^{-0.871(t-k)}\,e^{\mathrm{low}(k)}\,dk\right)_{t} - \mathrm{low}_{t} - \int_{-\infty}^{t} e^{-1.846(t-k)}\,e^{\left(\min_{0\leq k< 81} \mathrm{volume}_{t-k}\right)(k)}\,dk\right)^{2}
+

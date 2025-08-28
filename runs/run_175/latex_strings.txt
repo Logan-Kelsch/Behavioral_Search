@@ -1,0 +1,16 @@
+\mathrm{high}_{t} - \left(\mathrm{close}_{t} - \left(\max_{0\leq k< 67} \mathrm{close}_{t-k}\right)_{t} - 0\right)^{2}
+
+\left(\left(\frac{ \left(-\left(\left(\left(\frac{ \mathrm{close}_{t} - \left(\min_{0\leq k< 57} \mathrm{close}_{t-k}\right) }{ \left(\max_{0\leq k< 83} \mathrm{close}_{t-k}\right) - \left(\min_{0\leq k< 57} \mathrm{close}_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}\right)_{t}\right)_{t} - \left(\min_{0\leq k< 71} \left(-\left(\left(\left(\frac{ \mathrm{close}_{t} - \left(\min_{0\leq k< 57} \mathrm{close}_{t-k}\right) }{ \left(\max_{0\leq k< 83} \mathrm{close}_{t-k}\right) - \left(\min_{0\leq k< 57} \mathrm{close}_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}\right)_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 8} \left(-\left(\left(\left(\frac{ \mathrm{close}_{t} - \left(\min_{0\leq k< 57} \mathrm{close}_{t-k}\right) }{ \left(\max_{0\leq k< 83} \mathrm{close}_{t-k}\right) - \left(\min_{0\leq k< 57} \mathrm{close}_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}\right)_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 71} \left(-\left(\left(\left(\frac{ \mathrm{close}_{t} - \left(\min_{0\leq k< 57} \mathrm{close}_{t-k}\right) }{ \left(\max_{0\leq k< 83} \mathrm{close}_{t-k}\right) - \left(\min_{0\leq k< 57} \mathrm{close}_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}\right)_{t}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}
+
+\mathrm{low}_{t} - \left(\mathrm{high}_{t} - \left(\left(\frac{1}{2}\sum_{k=0}^{2-1} \mathrm{high}_{t-k}\right)_{t} - 0\right)^{2}\right)^{2}
+
+\left(\mathrm{close}_{t} - 0\right)_{t} - \left(\mathrm{volume}_{t} - \min_{0\leq k< 72} \mathrm{volume}_{t-k}\right)^{2}
+
+\mathrm{volume}_{t} - \left(\mathrm{low}_{t} - \left(\left(\mathrm{close}_{t} - \int_{-\infty}^{t} e^{-0.132(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)^{2}\right)_{t} - 0\right)^{2}
+
+\left(\left(\mathrm{low}_{t} - \min_{0\leq k< 60} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}
+
+\left(\max_{0\leq k< 81} \mathrm{close}_{t-k}\right)_{t} - \mathrm{high}_{t}
+
+\mathrm{low}_{t} - \min_{0\leq k< 61} \mathrm{volume}_{t-k}
+

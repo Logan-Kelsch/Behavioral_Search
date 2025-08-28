@@ -1,0 +1,8 @@
+\int_{-\infty}^{t} e^{-0.963(t-k)}\,e^{\left(\frac{ \mathrm{volume}_{t} - \left(\min_{0\leq k< 12} \mathrm{volume}_{t-k}\right) }{ \left(\max_{0\leq k< 2} \mathrm{volume}_{t-k}\right) - \left(\min_{0\leq k< 12} \mathrm{volume}_{t-k}\right) } - \frac{1}{2}\right)(k)}\,dk
+
+\min_{0\leq k< 18} \left(\frac{ \mathrm{high}_{t} - \left(\min_{0\leq k< 5} \mathrm{high}_{t-k}\right) }{ \left(\max_{0\leq k< 28} \mathrm{high}_{t-k}\right) - \left(\min_{0\leq k< 5} \mathrm{high}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}
+
+\frac{1}{44}\sum_{k=0}^{44-1} \left(\frac{ \mathrm{low}_{t} - \left(\min_{0\leq k< 9} \mathrm{low}_{t-k}\right) }{ \left(\max_{0\leq k< 30} \mathrm{low}_{t-k}\right) - \left(\min_{0\leq k< 9} \mathrm{low}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}
+
+\left(\mathrm{low}_{t} - \mathrm{close}_{t} - \int_{-\infty}^{t} e^{-0.126(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)^{2}
+

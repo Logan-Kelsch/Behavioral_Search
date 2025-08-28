@@ -1404,8 +1404,9 @@ if __name__ == "__main__":
 	print("running...")
 	#optimize_reproduction()
 
-	anytime_ensemble_builder(
-				atr_coef=(1, 2),
-				ln_plratio=(np.log(3), np.log(7)),
-				feat_iters=4, nsmb_iters=30
-	)
+	for i in range(25):
+		anytime_ensemble_builder(
+					atr_coef=1,
+					ln_plratio=np.log(5),
+					feat_iters=4, nsmb_iters=50
+		)

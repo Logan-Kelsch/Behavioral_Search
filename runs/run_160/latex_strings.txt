@@ -1,0 +1,10 @@
+\left(\left(\min_{0\leq k< 80} \mathrm{volume}_{t-k}\right)_{t} - \left(\mathrm{close}_{t} - \mathrm{low}_{t} - 0\right)^{2}\right)_{t} - 0
+
+\mathrm{close}_{t} - \mathrm{low}_{t} - \left(\frac{ \left(\frac{ \mathrm{low}_{t} - \left(\min_{0\leq k< 32} \mathrm{low}_{t-k}\right) }{ \left(\max_{0\leq k< 44} \mathrm{low}_{t-k}\right) - \left(\min_{0\leq k< 32} \mathrm{low}_{t-k}\right) } - \frac{1}{2}\right)_{t} - \left(\min_{0\leq k< 34} \left(\frac{ \mathrm{low}_{t} - \left(\min_{0\leq k< 32} \mathrm{low}_{t-k}\right) }{ \left(\max_{0\leq k< 44} \mathrm{low}_{t-k}\right) - \left(\min_{0\leq k< 32} \mathrm{low}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 18} \left(\frac{ \mathrm{low}_{t} - \left(\min_{0\leq k< 32} \mathrm{low}_{t-k}\right) }{ \left(\max_{0\leq k< 44} \mathrm{low}_{t-k}\right) - \left(\min_{0\leq k< 32} \mathrm{low}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right) - \left(\min_{0\leq k< 34} \left(\frac{ \mathrm{low}_{t} - \left(\min_{0\leq k< 32} \mathrm{low}_{t-k}\right) }{ \left(\max_{0\leq k< 44} \mathrm{low}_{t-k}\right) - \left(\min_{0\leq k< 32} \mathrm{low}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0
+
+\left(\mathrm{low}_{t} - \min_{0\leq k< 2} \left(\max_{0\leq k< 33} \mathrm{close}_{t-k}\right)_{t-k}\right)_{t} - 0
+
+\mathrm{close}_{t} - \frac{1}{28}\sum_{k=0}^{28-1} \left(\min_{0\leq k< 61} \mathrm{volume}_{t-k}\right)_{t-k}
+
+\mathrm{low}_{t} - \left(\mathrm{high}_{t} - \min_{0\leq k< 60} \mathrm{volume}_{t-k}\right)^{2}
+

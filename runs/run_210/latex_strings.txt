@@ -1,0 +1,12 @@
+\left(\left(\left(\mathrm{close}_{t} - \mathrm{high}_{t} - \left(\left(\min_{0\leq k< 62} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}\right)^{2}\right)_{t} - 0\right)^{2}
+
+\mathrm{low}_{t} - \max_{0\leq k< 46} \left(\frac{1}{24}\sum_{k=0}^{24-1} \mathrm{high}_{t-k}\right)_{t-k}
+
+\left(\frac{1}{16}\sum_{k=0}^{16-1} \mathrm{volume}_{t-k}\right)_{t} - \mathrm{volume}_{t} - \frac{ \mathrm{volume}_{t} - \left(\min_{0\leq k< 5} \mathrm{volume}_{t-k}\right) }{ \left(\max_{0\leq k< 40} \mathrm{volume}_{t-k}\right) - \left(\min_{0\leq k< 5} \mathrm{volume}_{t-k}\right) } - \frac{1}{2}
+
+\left(\mathrm{close}_{t} - \mathrm{high}_{t} - \mathrm{low}_{t} - \frac{1}{2}\sum_{k=0}^{2-1} \mathrm{high}_{t-k}\right)_{t} - 0
+
+\frac{ \left(\left(\mathrm{low}_{t} - 0\right)_{t} - \int_{-\infty}^{t} e^{-0.519(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)_{t} - \left(\min_{0\leq k< 71} \left(\left(\mathrm{low}_{t} - 0\right)_{t} - \int_{-\infty}^{t} e^{-0.519(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)_{t-k}\right) }{ \left(\max_{0\leq k< 4} \left(\left(\mathrm{low}_{t} - 0\right)_{t} - \int_{-\infty}^{t} e^{-0.519(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)_{t-k}\right) - \left(\min_{0\leq k< 71} \left(\left(\mathrm{low}_{t} - 0\right)_{t} - \int_{-\infty}^{t} e^{-0.519(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)_{t-k}\right) } - \frac{1}{2}
+
+\left(\mathrm{close}_{t} - \left(\left(\min_{0\leq k< 71} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - 0
+

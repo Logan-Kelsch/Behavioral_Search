@@ -1,0 +1,10 @@
+\mathrm{high}_{t} - \max_{0\leq k< 164} \left(\frac{1}{2}\sum_{k=0}^{2-1} \mathrm{high}_{t-k}\right)_{t-k}
+
+\left(\left(\left(\max_{0\leq k< 92} \mathrm{close}_{t-k}\right)_{t} - \left(\mathrm{low}_{t} - \left(\mathrm{high}_{t} - 0\right)^{2}\right)^{2}\right)_{t} - 0\right)^{2}
+
+\left(\mathrm{volume}_{t} - \min_{0\leq k< 11} \left(\left(\frac{ \mathrm{low}_{t} - \left(\min_{0\leq k< 2} \mathrm{low}_{t-k}\right) }{ \left(\max_{0\leq k< 17} \mathrm{low}_{t-k}\right) - \left(\min_{0\leq k< 2} \mathrm{low}_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)_{t-k}\right)^{2}
+
+\mathrm{close}_{t} - \left(\left(\mathrm{low}_{t} - 0\right)_{t} - \frac{1}{13}\sum_{k=0}^{13-1} \left(\max_{0\leq k< 77} \mathrm{high}_{t-k}\right)_{t-k}\right)^{2}
+
+\mathrm{high}_{t} - \left(\max_{0\leq k< 39} \mathrm{close}_{t-k}\right)_{t} - 0
+

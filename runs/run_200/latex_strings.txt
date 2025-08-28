@@ -1,0 +1,6 @@
+\int_{-\infty}^{t} e^{-0.015(t-k)}\,e^{\left(\frac{ \left(\frac{1}{7}\sum_{k=0}^{7-1} \mathrm{low}_{t-k}\right)_{t} - \left(\min_{0\leq k< 48} \left(\frac{1}{7}\sum_{k=0}^{7-1} \mathrm{low}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 8} \left(\frac{1}{7}\sum_{k=0}^{7-1} \mathrm{low}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 48} \left(\frac{1}{7}\sum_{k=0}^{7-1} \mathrm{low}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}\right)(k)}\,dk
+
+\mathrm{low}_{t} - \left(\int_{-\infty}^{t} e^{-0.226(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t} - 0
+
+\left(\left(\left(\min_{0\leq k< 4} \mathrm{high}_{t-k}\right)_{t} - \left(\min_{0\leq k< 59} \mathrm{volume}_{t-k}\right)_{t} - 0\right)_{t} - 0\right)^{2}
+

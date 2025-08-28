@@ -1,0 +1,14 @@
+\mathrm{close}_{t} - \min_{0\leq k< 74} \mathrm{volume}_{t-k}
+
+\frac{ \left(-\left(\frac{1}{9}\sum_{k=0}^{9-1} \mathrm{low}_{t-k}\right)_{t}\right)_{t} - \left(\min_{0\leq k< 132} \left(-\left(\frac{1}{9}\sum_{k=0}^{9-1} \mathrm{low}_{t-k}\right)_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 15} \left(-\left(\frac{1}{9}\sum_{k=0}^{9-1} \mathrm{low}_{t-k}\right)_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 132} \left(-\left(\frac{1}{9}\sum_{k=0}^{9-1} \mathrm{low}_{t-k}\right)_{t}\right)_{t-k}\right) } - \frac{1}{2}
+
+\left(\left(\left(\left(\mathrm{close}_{t} - \mathrm{close}_{t} - \max_{0\leq k< 53} \mathrm{low}_{t-k}\right)^{2}\right)_{t} - 0\right)^{2}\right)_{t} - 0
+
+\left(\mathrm{close}_{t} - \mathrm{low}_{t} - \min_{0\leq k< 57} \mathrm{volume}_{t-k}\right)^{2}
+
+\left(\left(\left(\mathrm{close}_{t} - \min_{0\leq k< 77} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - 0
+
+\frac{ \left(\mathrm{low}_{t} - \int_{-\infty}^{t} e^{-1.07(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)_{t} - \left(\min_{0\leq k< 78} \left(\mathrm{low}_{t} - \int_{-\infty}^{t} e^{-1.07(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)_{t-k}\right) }{ \left(\max_{0\leq k< 46} \left(\mathrm{low}_{t} - \int_{-\infty}^{t} e^{-1.07(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)_{t-k}\right) - \left(\min_{0\leq k< 78} \left(\mathrm{low}_{t} - \int_{-\infty}^{t} e^{-1.07(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)_{t-k}\right) } - \frac{1}{2}
+
+\left(\mathrm{close}_{t} - \left(\min_{0\leq k< 73} \mathrm{volume}_{t-k}\right)_{t} - 0\right)_{t} - 0
+

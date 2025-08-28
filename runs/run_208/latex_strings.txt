@@ -1,0 +1,10 @@
+\left(\left(\frac{1}{62}\sum_{k=0}^{62-1} \left(\left(\left(\frac{ \mathrm{high}_{t} - \left(\min_{0\leq k< 4} \mathrm{high}_{t-k}\right) }{ \left(\max_{0\leq k< 42} \mathrm{high}_{t-k}\right) - \left(\min_{0\leq k< 4} \mathrm{high}_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}\right)_{t-k}\right)_{t} - 0\right)^{2}
+
+\mathrm{low}_{t} - \max_{0\leq k< 79} \left(\frac{1}{3}\sum_{k=0}^{3-1} \mathrm{close}_{t-k}\right)_{t-k}
+
+\left(\mathrm{volume}_{t} - \left(\left(\max_{0\leq k< 36} \mathrm{high}_{t-k}\right)_{t} - \mathrm{high}_{t} - \min_{0\leq k< 63} \mathrm{volume}_{t-k}\right)^{2}\right)^{2}
+
+\left(\mathrm{close}_{t} - \left(\left(\left(\mathrm{close}_{t} - \frac{1}{24}\sum_{k=0}^{24-1} \left(\frac{ \mathrm{close}_{t} - \left(\min_{0\leq k< 6} \mathrm{close}_{t-k}\right) }{ \left(\max_{0\leq k< 6} \mathrm{close}_{t-k}\right) - \left(\min_{0\leq k< 6} \mathrm{close}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right)^{2}\right)_{t} - 0\right)^{2}\right)^{2}
+
+\left(\mathrm{high}_{t} - \left(\mathrm{close}_{t} - \min_{0\leq k< 58} \mathrm{volume}_{t-k}\right)^{2}\right)_{t} - 0
+

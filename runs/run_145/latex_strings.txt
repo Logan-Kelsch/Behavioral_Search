@@ -1,0 +1,22 @@
+\left(\mathrm{high}_{t} - 0\right)_{t} - \max_{0\leq k< 126} \mathrm{close}_{t-k}
+
+\left(\frac{1}{21}\sum_{k=0}^{21-1} \left(\frac{ \left(\frac{ \mathrm{close}_{t} - \left(\min_{0\leq k< 19} \mathrm{close}_{t-k}\right) }{ \left(\max_{0\leq k< 15} \mathrm{close}_{t-k}\right) - \left(\min_{0\leq k< 19} \mathrm{close}_{t-k}\right) } - \frac{1}{2}\right)_{t} - \left(\min_{0\leq k< 13} \left(\frac{ \mathrm{close}_{t} - \left(\min_{0\leq k< 19} \mathrm{close}_{t-k}\right) }{ \left(\max_{0\leq k< 15} \mathrm{close}_{t-k}\right) - \left(\min_{0\leq k< 19} \mathrm{close}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 3} \left(\frac{ \mathrm{close}_{t} - \left(\min_{0\leq k< 19} \mathrm{close}_{t-k}\right) }{ \left(\max_{0\leq k< 15} \mathrm{close}_{t-k}\right) - \left(\min_{0\leq k< 19} \mathrm{close}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right) - \left(\min_{0\leq k< 13} \left(\frac{ \mathrm{close}_{t} - \left(\min_{0\leq k< 19} \mathrm{close}_{t-k}\right) }{ \left(\max_{0\leq k< 15} \mathrm{close}_{t-k}\right) - \left(\min_{0\leq k< 19} \mathrm{close}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right)_{t} - 0
+
+\mathrm{high}_{t} - \left(\max_{0\leq k< 29} \mathrm{close}_{t-k}\right)_{t} - 0
+
+\left(\frac{1}{109}\sum_{k=0}^{109-1} \mathrm{high}_{t-k}\right)_{t} - \min_{0\leq k< 66} \left(\frac{1}{7}\sum_{k=0}^{7-1} \mathrm{volume}_{t-k}\right)_{t-k}
+
+\left(\left(\mathrm{volume}_{t} - 0\right)_{t} - \mathrm{close}_{t} - \left(\mathrm{low}_{t} - \int_{-\infty}^{t} e^{-3.653(t-k)}\,e^{\mathrm{low}(k)}\,dk\right)^{2}\right)^{2}
+
+\left(\mathrm{high}_{t} - 0\right)_{t} - \left(\left(\left(\min_{0\leq k< 72} \mathrm{volume}_{t-k}\right)_{t} - 0\right)_{t} - 0\right)^{2}
+
+\left(\mathrm{volume}_{t} - \left(\mathrm{close}_{t} - \mathrm{low}_{t} - \left(\min_{0\leq k< 68} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}\right)^{2}
+
+\left(\int_{-\infty}^{t} e^{-2.359(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)_{t} - \min_{0\leq k< 7} \left(\min_{0\leq k< 72} \mathrm{volume}_{t-k}\right)_{t-k}
+
+\frac{1}{5}\sum_{k=0}^{5-1} \left(\mathrm{high}_{t} - \left(\left(\min_{0\leq k< 58} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t-k}
+
+\left(\left(\left(\left(\max_{0\leq k< 77} \mathrm{low}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - 0\right)_{t} - \mathrm{close}_{t}
+
+\frac{ \left(-\mathrm{high}_{t}\right)_{t} - \left(\min_{0\leq k< 75} \left(-\mathrm{high}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 33} \left(-\mathrm{high}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 75} \left(-\mathrm{high}_{t}\right)_{t-k}\right) } - \frac{1}{2}
+

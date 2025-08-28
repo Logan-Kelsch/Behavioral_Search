@@ -1,0 +1,22 @@
+\mathrm{high}_{t} - \left(\left(\left(\max_{0\leq k< 69} \mathrm{close}_{t-k}\right)_{t} - 0\right)_{t} - 0\right)^{2}
+
+\mathrm{high}_{t} - \left(\left(\max_{0\leq k< 79} \mathrm{close}_{t-k}\right)_{t} - 0\right)^{2}
+
+\left(\left(\mathrm{high}_{t} - \min_{0\leq k< 61} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}
+
+\mathrm{high}_{t} - \min_{0\leq k< 76} \mathrm{volume}_{t-k}
+
+\mathrm{close}_{t} - \min_{0\leq k< 78} \mathrm{volume}_{t-k}
+
+\left(\left(\int_{-\infty}^{t} e^{-0.871(t-k)}\,e^{\mathrm{low}(k)}\,dk\right)_{t} - \mathrm{low}_{t} - \int_{-\infty}^{t} e^{-1.846(t-k)}\,e^{\left(\min_{0\leq k< 81} \mathrm{volume}_{t-k}\right)(k)}\,dk\right)^{2}
+
+\left(\mathrm{high}_{t} - 0\right)_{t} - \left(\left(\min_{0\leq k< 75} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}
+
+\left(\mathrm{volume}_{t} - \left(\mathrm{volume}_{t} - \mathrm{high}_{t} - \min_{0\leq k< 68} \mathrm{volume}_{t-k}\right)^{2}\right)^{2}
+
+\mathrm{high}_{t} - \max_{0\leq k< 2} \left(\min_{0\leq k< 63} \mathrm{volume}_{t-k}\right)_{t-k}
+
+\left(\mathrm{high}_{t} - \mathrm{low}_{t} - \frac{1}{2}\sum_{k=0}^{2-1} \mathrm{high}_{t-k}\right)^{2}
+
+\left(\left(\frac{ \left(\max_{0\leq k< 23} \mathrm{high}_{t-k}\right)_{t} - \left(\min_{0\leq k< 2} \left(\max_{0\leq k< 23} \mathrm{high}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 6} \left(\max_{0\leq k< 23} \mathrm{high}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 2} \left(\max_{0\leq k< 23} \mathrm{high}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}
+

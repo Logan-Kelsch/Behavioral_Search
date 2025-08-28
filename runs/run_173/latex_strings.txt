@@ -1,0 +1,14 @@
+\mathrm{high}_{t} - \left(\left(\left(\max_{0\leq k< 126} \mathrm{close}_{t-k}\right)_{t} - 0\right)_{t} - 0\right)_{t} - 0
+
+\frac{ \left(-\mathrm{low}_{t}\right)_{t} - \left(\min_{0\leq k< 118} \left(-\mathrm{low}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 33} \left(-\mathrm{low}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 118} \left(-\mathrm{low}_{t}\right)_{t-k}\right) } - \frac{1}{2}
+
+\min_{0\leq k< 23} \left(\frac{ \left(\frac{1}{4}\sum_{k=0}^{4-1} \mathrm{volume}_{t-k}\right)_{t} - \left(\min_{0\leq k< 9} \left(\frac{1}{4}\sum_{k=0}^{4-1} \mathrm{volume}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 10} \left(\frac{1}{4}\sum_{k=0}^{4-1} \mathrm{volume}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 9} \left(\frac{1}{4}\sum_{k=0}^{4-1} \mathrm{volume}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t-k}
+
+\left(\mathrm{high}_{t} - \left(\left(\frac{ \left(-\mathrm{close}_{t}\right)_{t} - \left(\min_{0\leq k< 45} \left(-\mathrm{close}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 2} \left(-\mathrm{close}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 45} \left(-\mathrm{close}_{t}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}\right)^{2}
+
+\mathrm{volume}_{t} - \left(\left(\mathrm{volume}_{t} - 0\right)^{2}\right)_{t} - \frac{ \left(\max_{0\leq k< 13} \mathrm{high}_{t-k}\right)_{t} - \left(\min_{0\leq k< 2} \left(\max_{0\leq k< 13} \mathrm{high}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 92} \left(\max_{0\leq k< 13} \mathrm{high}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 2} \left(\max_{0\leq k< 13} \mathrm{high}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}
+
+\mathrm{high}_{t} - \left(\left(\left(\mathrm{volume}_{t} - \max_{0\leq k< 54} \mathrm{close}_{t-k}\right)^{2}\right)_{t} - 0\right)^{2}
+
+\mathrm{close}_{t} - \left(\max_{0\leq k< 37} \mathrm{low}_{t-k}\right)_{t} - \mathrm{close}_{t} - \int_{-\infty}^{t} e^{-2.883(t-k)}\,e^{\mathrm{low}(k)}\,dk
+

@@ -1,0 +1,14 @@
+\mathrm{low}_{t} - \max_{0\leq k< 2} \left(\frac{1}{2}\sum_{k=0}^{2-1} \mathrm{close}_{t-k}\right)_{t-k}
+
+\left(\left(\frac{ \left(\max_{0\leq k< 36} \mathrm{low}_{t-k}\right)_{t} - \left(\min_{0\leq k< 4} \left(\max_{0\leq k< 36} \mathrm{low}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 5} \left(\max_{0\leq k< 36} \mathrm{low}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 4} \left(\max_{0\leq k< 36} \mathrm{low}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}
+
+\int_{-\infty}^{t} e^{-1.485(t-k)}\,e^{\left(\mathrm{volume}_{t} - \frac{ \left(\int_{-\infty}^{t} e^{-2.944(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t} - \left(\min_{0\leq k< 16} \left(\int_{-\infty}^{t} e^{-2.944(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t-k}\right) }{ \left(\max_{0\leq k< 2} \left(\int_{-\infty}^{t} e^{-2.944(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t-k}\right) - \left(\min_{0\leq k< 16} \left(\int_{-\infty}^{t} e^{-2.944(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t-k}\right) } - \frac{1}{2}\right)(k)}\,dk
+
+\left(\left(\mathrm{volume}_{t} - \mathrm{volume}_{t} - \frac{ \mathrm{high}_{t} - \left(\min_{0\leq k< 51} \mathrm{high}_{t-k}\right) }{ \left(\max_{0\leq k< 2} \mathrm{high}_{t-k}\right) - \left(\min_{0\leq k< 51} \mathrm{high}_{t-k}\right) } - \frac{1}{2}\right)^{2}\right)_{t} - 0
+
+\max_{0\leq k< 14} \left(\frac{ \mathrm{high}_{t} - \left(\min_{0\leq k< 46} \mathrm{high}_{t-k}\right) }{ \left(\max_{0\leq k< 14} \mathrm{high}_{t-k}\right) - \left(\min_{0\leq k< 46} \mathrm{high}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}
+
+-\left(\frac{ \left(\max_{0\leq k< 48} \mathrm{high}_{t-k}\right)_{t} - \left(\min_{0\leq k< 4} \left(\max_{0\leq k< 48} \mathrm{high}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 13} \left(\max_{0\leq k< 48} \mathrm{high}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 4} \left(\max_{0\leq k< 48} \mathrm{high}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t}
+
+\left(\min_{0\leq k< 59} \mathrm{volume}_{t-k}\right)_{t} - \frac{1}{10}\sum_{k=0}^{10-1} \mathrm{close}_{t-k}
+

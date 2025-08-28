@@ -1,0 +1,10 @@
+\left(\left(\min_{0\leq k< 17} \left(\frac{ \mathrm{high}_{t} - \left(\min_{0\leq k< 4} \mathrm{high}_{t-k}\right) }{ \left(\max_{0\leq k< 2} \mathrm{high}_{t-k}\right) - \left(\min_{0\leq k< 4} \mathrm{high}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right)_{t} - 0\right)^{2}
+
+\frac{ \left(\left(-\mathrm{close}_{t}\right)_{t} - 0\right)_{t} - \left(\min_{0\leq k< 79} \left(\left(-\mathrm{close}_{t}\right)_{t} - 0\right)_{t-k}\right) }{ \left(\max_{0\leq k< 2} \left(\left(-\mathrm{close}_{t}\right)_{t} - 0\right)_{t-k}\right) - \left(\min_{0\leq k< 79} \left(\left(-\mathrm{close}_{t}\right)_{t} - 0\right)_{t-k}\right) } - \frac{1}{2}
+
+\mathrm{low}_{t} - \min_{0\leq k< 59} \mathrm{volume}_{t-k}
+
+\left(\left(\left(\frac{ \left(-\mathrm{high}_{t}\right)_{t} - \left(\min_{0\leq k< 47} \left(-\mathrm{high}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 29} \left(-\mathrm{high}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 47} \left(-\mathrm{high}_{t}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)_{t} - 0\right)^{2}
+
+\left(\left(\mathrm{high}_{t} - \frac{ \mathrm{volume}_{t} - \left(\min_{0\leq k< 3} \mathrm{volume}_{t-k}\right) }{ \left(\max_{0\leq k< 12} \mathrm{volume}_{t-k}\right) - \left(\min_{0\leq k< 3} \mathrm{volume}_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}
+

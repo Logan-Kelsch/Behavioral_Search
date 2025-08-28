@@ -1,0 +1,14 @@
+\left(\left(\mathrm{close}_{t} - \left(\left(\min_{0\leq k< 63} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - 0\right)^{2}
+
+\left(\left(\mathrm{low}_{t} - \frac{1}{23}\sum_{k=0}^{23-1} \left(\max_{0\leq k< 52} \mathrm{high}_{t-k}\right)_{t-k}\right)_{t} - 0\right)^{2}
+
+\mathrm{low}_{t} - \left(\left(\left(\int_{-\infty}^{t} e^{-0.185(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t} - 0\right)_{t} - 0\right)^{2}
+
+\mathrm{low}_{t} - \int_{-\infty}^{t} e^{-0.205(t-k)}\,e^{\mathrm{volume}(k)}\,dk
+
+\left(\mathrm{close}_{t} - \left(\min_{0\leq k< 68} \mathrm{volume}_{t-k}\right)_{t} - 0\right)_{t} - 0
+
+\mathrm{close}_{t} - \min_{0\leq k< 65} \mathrm{volume}_{t-k}
+
+\mathrm{low}_{t} - \min_{0\leq k< 86} \left(\frac{1}{6}\sum_{k=0}^{6-1} \mathrm{volume}_{t-k}\right)_{t-k}
+

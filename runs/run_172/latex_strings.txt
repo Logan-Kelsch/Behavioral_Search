@@ -1,0 +1,8 @@
+\mathrm{low}_{t} - \left(\left(\left(\min_{0\leq k< 47} \mathrm{volume}_{t-k}\right)_{t} - \mathrm{low}_{t} - 0\right)_{t} - 0\right)^{2}
+
+\left(\left(\left(\min_{0\leq k< 58} \mathrm{close}_{t-k}\right)_{t} - \frac{1}{107}\sum_{k=0}^{107-1} \mathrm{close}_{t-k}\right)_{t} - 0\right)_{t} - 0
+
+\mathrm{low}_{t} - \min_{0\leq k< 67} \mathrm{volume}_{t-k}
+
+\left(\left(\left(\min_{0\leq k< 9} \left(\frac{ \mathrm{volume}_{t} - \left(\min_{0\leq k< 2} \mathrm{volume}_{t-k}\right) }{ \left(\max_{0\leq k< 123} \mathrm{volume}_{t-k}\right) - \left(\min_{0\leq k< 2} \mathrm{volume}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - 0
+

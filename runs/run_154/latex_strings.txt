@@ -1,0 +1,10 @@
+\mathrm{low}_{t} - \left(\mathrm{close}_{t} - \left(\mathrm{volume}_{t} - \frac{1}{2}\sum_{k=0}^{2-1} \mathrm{high}_{t-k}\right)^{2}\right)^{2}
+
+\left(\left(\left(\mathrm{high}_{t} - 0\right)_{t} - \max_{0\leq k< 45} \left(\max_{0\leq k< 74} \mathrm{close}_{t-k}\right)_{t-k}\right)_{t} - 0\right)^{2}
+
+\left(\left(\mathrm{volume}_{t} - \frac{ \left(-\mathrm{close}_{t}\right)_{t} - \left(\min_{0\leq k< 101} \left(-\mathrm{close}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 42} \left(-\mathrm{close}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 101} \left(-\mathrm{close}_{t}\right)_{t-k}\right) } - \frac{1}{2}\right)^{2}\right)_{t} - 0
+
+\mathrm{high}_{t} - \mathrm{volume}_{t} - \int_{-\infty}^{t} e^{-0.325(t-k)}\,e^{\left(\frac{1}{20}\sum_{k=0}^{20-1} \mathrm{close}_{t-k}\right)(k)}\,dk
+
+\mathrm{high}_{t} - \left(\left(\frac{ \mathrm{volume}_{t} - \left(\min_{0\leq k< 38} \mathrm{volume}_{t-k}\right) }{ \left(\max_{0\leq k< 36} \mathrm{volume}_{t-k}\right) - \left(\min_{0\leq k< 38} \mathrm{volume}_{t-k}\right) } - \frac{1}{2}\right)_{t} - \left(\int_{-\infty}^{t} e^{-0.201(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t} - 0\right)^{2}
+

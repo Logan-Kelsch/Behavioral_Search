@@ -1,0 +1,10 @@
+\mathrm{high}_{t} - \min_{0\leq k< 66} \mathrm{volume}_{t-k}
+
+\left(\mathrm{high}_{t} - \frac{ \left(\frac{1}{39}\sum_{k=0}^{39-1} \mathrm{volume}_{t-k}\right)_{t} - \left(\min_{0\leq k< 120} \left(\frac{1}{39}\sum_{k=0}^{39-1} \mathrm{volume}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 27} \left(\frac{1}{39}\sum_{k=0}^{39-1} \mathrm{volume}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 120} \left(\frac{1}{39}\sum_{k=0}^{39-1} \mathrm{volume}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}\right)^{2}
+
+\left(\left(\left(\frac{1}{12}\sum_{k=0}^{12-1} \left(\frac{ \mathrm{volume}_{t} - \left(\min_{0\leq k< 2} \mathrm{volume}_{t-k}\right) }{ \left(\max_{0\leq k< 100} \mathrm{volume}_{t-k}\right) - \left(\min_{0\leq k< 2} \mathrm{volume}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right)_{t} - 0\right)_{t} - 0\right)^{2}
+
+\left(\mathrm{high}_{t} - \frac{1}{42}\sum_{k=0}^{42-1} \left(\left(\frac{ \mathrm{low}_{t} - \left(\min_{0\leq k< 17} \mathrm{low}_{t-k}\right) }{ \left(\max_{0\leq k< 6} \mathrm{low}_{t-k}\right) - \left(\min_{0\leq k< 17} \mathrm{low}_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)_{t-k}\right)^{2}
+
+\max_{0\leq k< 11} \left(\frac{ \mathrm{high}_{t} - \left(\min_{0\leq k< 27} \mathrm{high}_{t-k}\right) }{ \left(\max_{0\leq k< 19} \mathrm{high}_{t-k}\right) - \left(\min_{0\leq k< 27} \mathrm{high}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}
+

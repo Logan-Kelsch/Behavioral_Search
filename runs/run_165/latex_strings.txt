@@ -1,0 +1,10 @@
+\mathrm{high}_{t} - \min_{0\leq k< 110} \left(\int_{-\infty}^{t} e^{-2.033(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t-k}
+
+\left(\mathrm{low}_{t} - \mathrm{low}_{t} - \mathrm{high}_{t} - \frac{ \left(\max_{0\leq k< 103} \mathrm{low}_{t-k}\right)_{t} - \left(\min_{0\leq k< 6} \left(\max_{0\leq k< 103} \mathrm{low}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 2} \left(\max_{0\leq k< 103} \mathrm{low}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 6} \left(\max_{0\leq k< 103} \mathrm{low}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}\right)^{2}
+
+\left(\mathrm{volume}_{t} - \left(\mathrm{high}_{t} - \left(\left(\max_{0\leq k< 184} \mathrm{close}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - 0\right)^{2}
+
+\mathrm{close}_{t} - \int_{-\infty}^{t} e^{-5.333(t-k)}\,e^{\mathrm{low}(k)}\,dk
+
+\left(\min_{0\leq k< 70} \mathrm{volume}_{t-k}\right)_{t} - \left(\frac{1}{5}\sum_{k=0}^{5-1} \left(\int_{-\infty}^{t} e^{-2.511(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)_{t-k}\right)_{t} - 0
+

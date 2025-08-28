@@ -1,0 +1,16 @@
+\mathrm{low}_{t} - \left(\mathrm{low}_{t} - \max_{0\leq k< 34} \left(\min_{0\leq k< 2} \mathrm{close}_{t-k}\right)_{t-k}\right)^{2}
+
+\left(\frac{1}{14}\sum_{k=0}^{14-1} \left(\left(\left(\mathrm{low}_{t} - \frac{1}{6}\sum_{k=0}^{6-1} \mathrm{close}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t-k}\right)_{t} - 0
+
+\mathrm{low}_{t} - \frac{1}{2}\sum_{k=0}^{2-1} \mathrm{high}_{t-k}
+
+\mathrm{close}_{t} - \left(\mathrm{low}_{t} - \left(\mathrm{volume}_{t} - \left(\left(\max_{0\leq k< 71} \mathrm{low}_{t-k}\right)_{t} - 0\right)^{2}\right)^{2}\right)^{2}
+
+\mathrm{volume}_{t} - \left(\mathrm{high}_{t} - \int_{-\infty}^{t} e^{-0.39(t-k)}\,e^{\mathrm{low}(k)}\,dk\right)^{2}
+
+\left(\left(\left(\left(\left(\left(\mathrm{low}_{t} - \frac{1}{3}\sum_{k=0}^{3-1} \mathrm{high}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - 0\right)^{2}\right)_{t} - 0\right)^{2}
+
+\mathrm{close}_{t} - \left(\left(\left(\int_{-\infty}^{t} e^{-4.372(t-k)}\,e^{\mathrm{low}(k)}\,dk\right)_{t} - 0\right)^{2}\right)_{t} - 0
+
+\mathrm{volume}_{t} - \int_{-\infty}^{t} e^{-0.266(t-k)}\,e^{\mathrm{high}(k)}\,dk
+

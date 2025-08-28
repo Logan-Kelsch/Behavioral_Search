@@ -1,0 +1,20 @@
+\frac{ \left(\max_{0\leq k< 106} \mathrm{close}_{t-k}\right)_{t} - \left(\min_{0\leq k< 2} \left(\max_{0\leq k< 106} \mathrm{close}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 55} \left(\max_{0\leq k< 106} \mathrm{close}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 2} \left(\max_{0\leq k< 106} \mathrm{close}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}
+
+\left(\left(\max_{0\leq k< 127} \mathrm{low}_{t-k}\right)_{t} - \mathrm{high}_{t}\right)_{t} - 0
+
+\left(\left(\left(\left(\int_{-\infty}^{t} e^{-4.082(t-k)}\,e^{\mathrm{low}(k)}\,dk\right)_{t} - 0\right)^{2}\right)_{t} - \mathrm{close}_{t}\right)_{t} - 0
+
+\mathrm{high}_{t} - \left(\left(\left(\left(\max_{0\leq k< 136} \mathrm{close}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - 0\right)^{2}
+
+\mathrm{close}_{t} - \frac{ \left(\left(\mathrm{volume}_{t} - \min_{0\leq k< 9} \mathrm{volume}_{t-k}\right)^{2}\right)_{t} - \left(\min_{0\leq k< 9} \left(\left(\mathrm{volume}_{t} - \min_{0\leq k< 9} \mathrm{volume}_{t-k}\right)^{2}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 3} \left(\left(\mathrm{volume}_{t} - \min_{0\leq k< 9} \mathrm{volume}_{t-k}\right)^{2}\right)_{t-k}\right) - \left(\min_{0\leq k< 9} \left(\left(\mathrm{volume}_{t} - \min_{0\leq k< 9} \mathrm{volume}_{t-k}\right)^{2}\right)_{t-k}\right) } - \frac{1}{2}
+
+\mathrm{low}_{t} - \min_{0\leq k< 5} \left(\max_{0\leq k< 10} \mathrm{high}_{t-k}\right)_{t-k}
+
+\left(\left(\mathrm{close}_{t} - \left(\mathrm{low}_{t} - \left(\left(\max_{0\leq k< 56} \mathrm{low}_{t-k}\right)_{t} - 0\right)^{2}\right)^{2}\right)_{t} - 0\right)^{2}
+
+\left(\left(-\left(\frac{ \left(-\mathrm{close}_{t}\right)_{t} - \left(\min_{0\leq k< 57} \left(-\mathrm{close}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 12} \left(-\mathrm{close}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 57} \left(-\mathrm{close}_{t}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t}\right)_{t} - 0\right)_{t} - 0
+
+\left(\mathrm{low}_{t} - \left(\left(\mathrm{close}_{t} - \max_{0\leq k< 159} \mathrm{low}_{t-k}\right)_{t} - 0\right)^{2}\right)^{2}
+
+\left(\mathrm{high}_{t} - \left(\left(\left(\left(\mathrm{high}_{t} - \max_{0\leq k< 112} \mathrm{close}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - 0\right)^{2}\right)^{2}
+

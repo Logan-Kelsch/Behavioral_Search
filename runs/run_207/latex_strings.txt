@@ -1,0 +1,8 @@
+\mathrm{high}_{t} - \min_{0\leq k< 61} \mathrm{volume}_{t-k}
+
+\mathrm{close}_{t} - \max_{0\leq k< 31} \left(\left(\mathrm{volume}_{t} - \max_{0\leq k< 57} \mathrm{low}_{t-k}\right)^{2}\right)_{t-k}
+
+\mathrm{low}_{t} - \frac{ \left(\mathrm{volume}_{t} - 0\right)_{t} - \left(\min_{0\leq k< 4} \left(\mathrm{volume}_{t} - 0\right)_{t-k}\right) }{ \left(\max_{0\leq k< 39} \left(\mathrm{volume}_{t} - 0\right)_{t-k}\right) - \left(\min_{0\leq k< 4} \left(\mathrm{volume}_{t} - 0\right)_{t-k}\right) } - \frac{1}{2}
+
+\int_{-\infty}^{t} e^{-0.095(t-k)}\,e^{\left(\frac{ \mathrm{low}_{t} - \left(\min_{0\leq k< 23} \mathrm{low}_{t-k}\right) }{ \left(\max_{0\leq k< 21} \mathrm{low}_{t-k}\right) - \left(\min_{0\leq k< 23} \mathrm{low}_{t-k}\right) } - \frac{1}{2}\right)(k)}\,dk
+

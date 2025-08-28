@@ -1,0 +1,18 @@
+\frac{ \left(-\mathrm{high}_{t}\right)_{t} - \left(\min_{0\leq k< 52} \left(-\mathrm{high}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 10} \left(-\mathrm{high}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 52} \left(-\mathrm{high}_{t}\right)_{t-k}\right) } - \frac{1}{2}
+
+\left(\left(\left(\mathrm{high}_{t} - \max_{0\leq k< 68} \mathrm{close}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - 0
+
+\left(\left(\left(\frac{ \left(-\mathrm{high}_{t}\right)_{t} - \left(\min_{0\leq k< 79} \left(-\mathrm{high}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 34} \left(-\mathrm{high}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 79} \left(-\mathrm{high}_{t}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)_{t} - 0\right)^{2}
+
+\left(\left(\mathrm{low}_{t} - \frac{ \mathrm{volume}_{t} - \left(\min_{0\leq k< 3} \mathrm{volume}_{t-k}\right) }{ \left(\max_{0\leq k< 12} \mathrm{volume}_{t-k}\right) - \left(\min_{0\leq k< 3} \mathrm{volume}_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}
+
+\left(\mathrm{close}_{t} - \min_{0\leq k< 10} \left(\frac{ \mathrm{low}_{t} - \left(\min_{0\leq k< 2} \mathrm{low}_{t-k}\right) }{ \left(\max_{0\leq k< 68} \mathrm{low}_{t-k}\right) - \left(\min_{0\leq k< 2} \mathrm{low}_{t-k}\right) } - \frac{1}{2}\right)_{t-k}\right)^{2}
+
+\frac{ \left(-\mathrm{low}_{t}\right)_{t} - \left(\min_{0\leq k< 66} \left(-\mathrm{low}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 2} \left(-\mathrm{low}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 66} \left(-\mathrm{low}_{t}\right)_{t-k}\right) } - \frac{1}{2}
+
+\left(\left(\left(\left(\max_{0\leq k< 66} \mathrm{low}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - \mathrm{close}_{t}\right)_{t} - 0
+
+\left(\left(\left(\mathrm{volume}_{t} - \left(\left(\frac{ \left(-\mathrm{high}_{t}\right)_{t} - \left(\min_{0\leq k< 128} \left(-\mathrm{high}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 41} \left(-\mathrm{high}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 128} \left(-\mathrm{high}_{t}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}\right)^{2}\right)_{t} - 0\right)^{2}
+
+\frac{ \left(\max_{0\leq k< 54} \mathrm{low}_{t-k}\right)_{t} - \left(\min_{0\leq k< 3} \left(\max_{0\leq k< 54} \mathrm{low}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 36} \left(\max_{0\leq k< 54} \mathrm{low}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 3} \left(\max_{0\leq k< 54} \mathrm{low}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}
+

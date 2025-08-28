@@ -1,0 +1,12 @@
+\mathrm{high}_{t} - \int_{-\infty}^{t} e^{-3.35(t-k)}\,e^{\left(\min_{0\leq k< 26} \mathrm{high}_{t-k}\right)(k)}\,dk
+
+\left(-\left(\mathrm{close}_{t} - \left(\max_{0\leq k< 107} \mathrm{low}_{t-k}\right)_{t} - 0\right)_{t}\right)_{t} - 0
+
+\mathrm{low}_{t} - \left(\left(\min_{0\leq k< 62} \left(\left(\mathrm{volume}_{t} - \mathrm{volume}_{t}\right)^{2}\right)_{t-k}\right)_{t} - 0\right)^{2}
+
+\left(\mathrm{high}_{t} - \left(\left(\frac{ \left(\max_{0\leq k< 41} \mathrm{high}_{t-k}\right)_{t} - \left(\min_{0\leq k< 2} \left(\max_{0\leq k< 41} \mathrm{high}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 5} \left(\max_{0\leq k< 41} \mathrm{high}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 2} \left(\max_{0\leq k< 41} \mathrm{high}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)^{2}\right)^{2}
+
+\left(\mathrm{high}_{t} - \frac{ \mathrm{low}_{t} - \left(\min_{0\leq k< 2} \mathrm{low}_{t-k}\right) }{ \left(\max_{0\leq k< 11} \mathrm{low}_{t-k}\right) - \left(\min_{0\leq k< 2} \mathrm{low}_{t-k}\right) } - \frac{1}{2}\right)_{t} - \mathrm{low}_{t}
+
+\left(\mathrm{high}_{t} - \mathrm{high}_{t} - \min_{0\leq k< 58} \mathrm{volume}_{t-k}\right)^{2}
+

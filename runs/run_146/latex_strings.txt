@@ -1,0 +1,8 @@
+\left(\frac{ \left(\max_{0\leq k< 121} \mathrm{close}_{t-k}\right)_{t} - \left(\min_{0\leq k< 2} \left(\max_{0\leq k< 121} \mathrm{close}_{t-k}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 2} \left(\max_{0\leq k< 121} \mathrm{close}_{t-k}\right)_{t-k}\right) - \left(\min_{0\leq k< 2} \left(\max_{0\leq k< 121} \mathrm{close}_{t-k}\right)_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0
+
+\left(\left(\mathrm{high}_{t} - \min_{0\leq k< 74} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}
+
+\frac{ \left(-\mathrm{high}_{t}\right)_{t} - \left(\min_{0\leq k< 75} \left(-\mathrm{high}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 33} \left(-\mathrm{high}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 75} \left(-\mathrm{high}_{t}\right)_{t-k}\right) } - \frac{1}{2}
+
+\left(\mathrm{volume}_{t} - \int_{-\infty}^{t} e^{-1.196(t-k)}\,e^{\left(\int_{-\infty}^{t} e^{-0.033(t-k)}\,e^{\mathrm{close}(k)}\,dk\right)(k)}\,dk\right)_{t} - 0
+

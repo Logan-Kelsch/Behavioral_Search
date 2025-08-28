@@ -1,0 +1,12 @@
+\mathrm{low}_{t} - \frac{1}{3}\sum_{k=0}^{3-1} \mathrm{close}_{t-k}
+
+\left(\mathrm{high}_{t} - \min_{0\leq k< 81} \mathrm{volume}_{t-k}\right)_{t} - 0
+
+\left(\mathrm{close}_{t} - \mathrm{volume}_{t} - \frac{ \mathrm{volume}_{t} - \left(\min_{0\leq k< 67} \mathrm{volume}_{t-k}\right) }{ \left(\max_{0\leq k< 2} \mathrm{volume}_{t-k}\right) - \left(\min_{0\leq k< 67} \mathrm{volume}_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0
+
+\left(\mathrm{low}_{t} - -\left(\mathrm{low}_{t} - \int_{-\infty}^{t} e^{-0.219(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t}\right)^{2}
+
+\mathrm{high}_{t} - \min_{0\leq k< 73} \mathrm{volume}_{t-k}
+
+\mathrm{high}_{t} - \left(\left(\left(\left(\left(\left(\max_{0\leq k< 67} \mathrm{close}_{t-k}\right)_{t} - 0\right)^{2}\right)_{t} - 0\right)^{2}\right)_{t} - 0\right)^{2}
+

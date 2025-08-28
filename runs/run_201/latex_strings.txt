@@ -1,0 +1,12 @@
+\mathrm{close}_{t} - \left(\left(\left(\left(\mathrm{volume}_{t} - \int_{-\infty}^{t} e^{-0.133(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)^{2}\right)_{t} - 0\right)_{t} - 0\right)^{2}
+
+\mathrm{low}_{t} - \mathrm{volume}_{t} - \left(\left(\mathrm{low}_{t} - \int_{-\infty}^{t} e^{-0.15(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t} - 0\right)^{2}
+
+\mathrm{low}_{t} - \left(\left(\min_{0\leq k< 61} \mathrm{volume}_{t-k}\right)_{t} - 0\right)_{t} - 0
+
+\mathrm{high}_{t} - \left(\mathrm{low}_{t} - \left(\left(\left(\int_{-\infty}^{t} e^{-0.191(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t} - 0\right)^{2}\right)_{t} - 0\right)^{2}
+
+\left(\mathrm{low}_{t} - \min_{0\leq k< 65} \mathrm{volume}_{t-k}\right)_{t} - 0
+
+\left(\left(\mathrm{low}_{t} - 0\right)^{2}\right)_{t} - \left(\mathrm{low}_{t} - \left(\left(\min_{0\leq k< 56} \mathrm{volume}_{t-k}\right)_{t} - 0\right)^{2}\right)^{2}
+

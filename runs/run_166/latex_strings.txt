@@ -1,0 +1,12 @@
+\frac{ \left(-\mathrm{close}_{t}\right)_{t} - \left(\min_{0\leq k< 46} \left(-\mathrm{close}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 22} \left(-\mathrm{close}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 46} \left(-\mathrm{close}_{t}\right)_{t-k}\right) } - \frac{1}{2}
+
+\frac{ \left(-\mathrm{close}_{t}\right)_{t} - \left(\min_{0\leq k< 67} \left(-\mathrm{close}_{t}\right)_{t-k}\right) }{ \left(\max_{0\leq k< 4} \left(-\mathrm{close}_{t}\right)_{t-k}\right) - \left(\min_{0\leq k< 67} \left(-\mathrm{close}_{t}\right)_{t-k}\right) } - \frac{1}{2}
+
+\mathrm{low}_{t} - \left(\min_{0\leq k< 77} \mathrm{volume}_{t-k}\right)_{t} - 0
+
+\left(\left(\left(\mathrm{volume}_{t} - \int_{-\infty}^{t} e^{-0.231(t-k)}\,e^{\mathrm{low}(k)}\,dk\right)_{t} - 0\right)_{t} - 0\right)_{t} - 0
+
+\left(\mathrm{low}_{t} - \left(\mathrm{low}_{t} - \left(\int_{-\infty}^{t} e^{-0.253(t-k)}\,e^{\mathrm{volume}(k)}\,dk\right)_{t} - 0\right)_{t} - 0\right)^{2}
+
+\mathrm{close}_{t} - \frac{1}{27}\sum_{k=0}^{27-1} \left(\max_{0\leq k< 70} \mathrm{close}_{t-k}\right)_{t-k}
+

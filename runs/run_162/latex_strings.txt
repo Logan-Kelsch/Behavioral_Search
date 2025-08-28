@@ -1,0 +1,10 @@
+\max_{0\leq k< 9} \left(\left(\frac{ \mathrm{high}_{t} - \left(\min_{0\leq k< 55} \mathrm{high}_{t-k}\right) }{ \left(\max_{0\leq k< 15} \mathrm{high}_{t-k}\right) - \left(\min_{0\leq k< 55} \mathrm{high}_{t-k}\right) } - \frac{1}{2}\right)_{t} - 0\right)_{t-k}
+
+\mathrm{low}_{t} - \min_{0\leq k< 4} \left(\max_{0\leq k< 51} \mathrm{high}_{t-k}\right)_{t-k}
+
+\mathrm{low}_{t} - \min_{0\leq k< 66} \mathrm{volume}_{t-k}
+
+\mathrm{volume}_{t} - \max_{0\leq k< 4} \left(\int_{-\infty}^{t} e^{-0.161(t-k)}\,e^{\mathrm{low}(k)}\,dk\right)_{t-k}
+
+\left(\left(\mathrm{close}_{t} - \mathrm{low}_{t} - \left(\mathrm{close}_{t} - \frac{1}{2}\sum_{k=0}^{2-1} \mathrm{high}_{t-k}\right)^{2}\right)^{2}\right)_{t} - 0
+
